@@ -2,8 +2,8 @@
 # Backend: Salesforce Sandbox
 
 environment         = "int"
-apim_name          = "amn-wus2-hub-apim-d02"
-apim_resource_group = "amn-wus2-hub-rg-d01"
+apim_name          = "amn-wus2-hub-apim-i02"
+apim_resource_group = "amn-wus2-hub-rg-i01"
 
 # Salesforce sandbox
 backend_url = "https://api.salesforce.com"
