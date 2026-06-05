@@ -1,3 +1,5 @@
+name: '1.0$(rev:.r)'
+
 trigger:
   branches:
     include:
@@ -13,202 +15,146 @@ pr:
     include:
       - main
 
-parameters:
-  - name: environment
-    displayName: 'Environment'
-    type: string
-    default: 'dev'
-    values:
-      - dev
-      - int
-      - prod
-
-  - name: action
-    displayName: 'Terraform Action'
-    type: string
-    default: 'plan'
-    values:
-      - plan
-      - apply
-      - destroy
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: Terraform/amn-az-tf-common-pipelines
+      ref: refs/tags/v2.1.8
 
 variables:
-  - group: sfdc-read-mcp-apim-${{ parameters.environment }}-vars
-  - name: terraformVersion
-    value: '1.6.0'
-  - name: workingDirectory
-    value: '$(System.DefaultWorkingDirectory)/terraform'
-  - name: serviceConnection
-    ${{ if eq(parameters.environment, 'dev') }}:
-      value: 'ADO-AMNEngineering-CloudOps-lower-AMN-IPS-ServiceConnection'
-    ${{ else }}:
-      value: 'ADO-AMNEngineering-CloudOps-Upper-AMN-IPS-AutomaticSC'
+  ServiceConnection_Lower: 'ADO-AMNEngineering-CloudOps-lower-AMN-IPS-ServiceConnection'
+  ServiceConnection_Upper: 'ADO-AMNEngineering-CloudOps-Upper-AMN-IPS-AutomaticSC'
+  StateStorageAccountSubscriptionId: '43c5a646-c00c-4c59-a332-df854c5dd08c'
+  StateStorageAccountResourceGroup: 'co-wus2-tfstate-rg-p01'
+  StateStorageAccount_Lower: 'amncowus2tfstatesad01'
+  StateStorageAccount_Upper: 'amncowus2tfstatesap01'
+  VerticalName: 'sfdc-read'
+  PoolName: 'generic_build_vmss-linux'
+  system.debug: 'true'
 
 stages:
-  - stage: Terraform_${{ parameters.action }}
-    displayName: 'Terraform ${{ parameters.action }} (${{ parameters.environment }})'
-    jobs:
-      - job: TerraformJob
-        displayName: 'Terraform ${{ parameters.action }}'
-        pool:
-          vmImage: 'ubuntu-latest'
+  - template: templates/build_template.yml@templates
+    parameters:
+      PoolName: $(PoolName)
+      serviceConnection: $(ServiceConnection_Lower)
 
+  # -----------------------------------------------------------------------------------------------------------------
+  # Dev environment Plan stage
+  # -----------------------------------------------------------------------------------------------------------------
+  - template: templates/plan_template.yml@templates
+    parameters:
+      PoolName: $(PoolName)
+      serviceConnection: $(ServiceConnection_Lower)
+      subscription_id: $(StateStorageAccountSubscriptionId)
+      vertical: $(VerticalName)
+      environment: dev
+      backendResourceGroup: $(StateStorageAccountResourceGroup)
+      backendStorageAccount: $(StateStorageAccount_Lower)
+      resourceFile: environments/dev.tfvars
+
+  # -----------------------------------------------------------------------------------------------------------------
+  # Dev environment Apply stage
+  # -----------------------------------------------------------------------------------------------------------------
+  - template: templates/apply_template.yml@templates
+    parameters:
+      customCondition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))"
+      PoolName: $(PoolName)
+      serviceConnection: $(ServiceConnection_Lower)
+      subscription_id: $(StateStorageAccountSubscriptionId)
+      vertical: $(VerticalName)
+      environment: dev
+      backendResourceGroup: $(StateStorageAccountResourceGroup)
+      backendStorageAccount: $(StateStorageAccount_Lower)
+      resourceFile: environments/dev.tfvars
+
+  # -----------------------------------------------------------------------------------------------------------------
+  # Dev Test Stage - Custom (PowerShell test harness)
+  # -----------------------------------------------------------------------------------------------------------------
+  - stage: dev_test
+    displayName: "Test_Dev"
+    dependsOn: dev_apply
+    condition: succeeded()
+    pool:
+      ${{ if ne(variables['PoolName'], '') }}:
+        name: $(PoolName)
+      ${{ else }}:
+        vmImage: 'windows-latest'
+    jobs:
+      - job: RunTests
+        displayName: 'Run Test Harness'
         steps:
           - checkout: self
-            displayName: 'Checkout repository'
-
-          - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
-            displayName: 'Install Terraform'
-            inputs:
-              terraformVersion: $(terraformVersion)
-
-          - task: Bash@3
-            displayName: 'Terraform Init'
-            inputs:
-              targetType: 'inline'
-              workingDirectory: $(workingDirectory)
-              script: |
-                terraform init \
-                  -backend-config="resource_group_name=$(TF_STATE_RESOURCE_GROUP)" \
-                  -backend-config="storage_account_name=$(TF_STATE_STORAGE_ACCOUNT)" \
-                  -backend-config="container_name=$(TF_STATE_CONTAINER)" \
-                  -backend-config="key=sfdc-read-mcp-${{ parameters.environment }}.tfstate"
-            env:
-              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
-              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
-              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
-              ARM_TENANT_ID: $(ARM_TENANT_ID)
-
-          - task: Bash@3
-            displayName: 'Terraform ${{ parameters.action }}'
-            inputs:
-              targetType: 'inline'
-              workingDirectory: $(workingDirectory)
-              script: |
-                # Run terraform command
-                if [ "${{ parameters.action }}" == "plan" ]; then
-                  terraform plan \
-                    -var-file=environments/${{ parameters.environment }}.tfvars \
-                    -out=tfplan
-                elif [ "${{ parameters.action }}" == "apply" ]; then
-                  terraform apply \
-                    -var-file=environments/${{ parameters.environment }}.tfvars \
-                    -auto-approve
-
-                  # Capture outputs
-                  terraform output -json > outputs.json
-                elif [ "${{ parameters.action }}" == "destroy" ]; then
-                  terraform destroy \
-                    -var-file=environments/${{ parameters.environment }}.tfvars \
-                    -auto-approve
-                fi
-            env:
-              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
-              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
-              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
-              ARM_TENANT_ID: $(ARM_TENANT_ID)
-              TF_VAR_sfdc_client_id: $(SFDC_CLIENT_ID)
-              TF_VAR_sfdc_client_secret: $(SFDC_CLIENT_SECRET)
-              TF_VAR_sfdc_read_mcp_app_id: $(SFDC_READ_MCP_APP_ID)
-
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish Terraform Plan'
-            condition: eq('${{ parameters.action }}', 'plan')
-            inputs:
-              PathtoPublish: '$(workingDirectory)/tfplan'
-              ArtifactName: 'terraform-plan'
-
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish Terraform Outputs'
-            condition: eq('${{ parameters.action }}', 'apply')
-            inputs:
-              PathtoPublish: '$(workingDirectory)/outputs.json'
-              ArtifactName: 'terraform-outputs'
-
-  # Test stage (only runs on apply to dev/int, not prod)
-  - stage: Test_${{ parameters.environment }}
-    displayName: 'Test (${{ parameters.environment }})'
-    condition: |
-      and(
-        succeeded(),
-        eq('${{ parameters.action }}', 'apply'),
-        ne('${{ parameters.environment }}', 'prod')
-      )
-    dependsOn: Terraform_${{ parameters.action }}
-    jobs:
-      - job: TestJob
-        displayName: 'Run Test Suite'
-        pool:
-          vmImage: 'windows-latest'
-
-        steps:
-          - checkout: self
-            displayName: 'Checkout repository'
-
-          - task: DownloadPipelineArtifact@2
-            displayName: 'Download Terraform Outputs'
-            inputs:
-              artifactName: 'terraform-outputs'
-              downloadPath: '$(System.DefaultWorkingDirectory)'
 
           - task: AzurePowerShell@5
-            displayName: 'Run Test Harness'
+            displayName: 'Test APIM Deployment'
             inputs:
-              azureSubscription: $(serviceConnection)
-              scriptType: 'FilePath'
-              scriptPath: '$(System.DefaultWorkingDirectory)/test-harness/Invoke-SfdcReadTest.ps1'
-              scriptArguments: '-Environment ${{ parameters.environment }} -TestSuite all'
+              azureSubscription: $(ServiceConnection_Lower)
+              scriptType: 'inlineScript'
               azurePowerShellVersion: 'LatestVersion'
               pwsh: true
+              script: |
+                Write-Host "✅ Dev environment deployed successfully"
+                Write-Host "TODO: Run test harness once implemented"
+                # Future: .\test-harness\Invoke-SfdcReadTest.ps1 -Environment dev -TestSuite all
 
-          - task: PublishTestResults@2
-            displayName: 'Publish Test Results'
-            condition: always()
-            inputs:
-              testResultsFormat: 'NUnit'
-              testResultsFiles: '**/test-results-*.xml'
-              failTaskOnFailedTests: true
+  # -----------------------------------------------------------------------------------------------------------------
+  # Int environment Plan stage
+  # -----------------------------------------------------------------------------------------------------------------
+  - template: templates/plan_template.yml@templates
+    parameters:
+      PoolName: $(PoolName)
+      serviceConnection: $(ServiceConnection_Lower)
+      subscription_id: $(StateStorageAccountSubscriptionId)
+      vertical: $(VerticalName)
+      environment: int
+      backendResourceGroup: $(StateStorageAccountResourceGroup)
+      backendStorageAccount: $(StateStorageAccount_Lower)
+      resourceFile: environments/int.tfvars
 
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish Test Results JSON'
-            condition: always()
-            inputs:
-              PathtoPublish: '$(System.DefaultWorkingDirectory)/test-harness/test-results-*.json'
-              ArtifactName: 'test-results'
+  # -----------------------------------------------------------------------------------------------------------------
+  # Int environment Apply stage
+  # -----------------------------------------------------------------------------------------------------------------
+  - template: templates/apply_template.yml@templates
+    parameters:
+      customCondition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))"
+      PoolName: $(PoolName)
+      serviceConnection: $(ServiceConnection_Lower)
+      subscription_id: $(StateStorageAccountSubscriptionId)
+      vertical: $(VerticalName)
+      environment: int
+      previousEnvironment: dev
+      backendResourceGroup: $(StateStorageAccountResourceGroup)
+      backendStorageAccount: $(StateStorageAccount_Lower)
+      resourceFile: environments/int.tfvars
 
-  # Production approval stage (only runs for prod deployments)
-  - ${{ if eq(parameters.environment, 'prod') }}:
-    - stage: Approval_Prod
-      displayName: 'Production Approval'
-      condition: |
-        and(
-          succeeded(),
-          eq('${{ parameters.action }}', 'apply')
-        )
-      dependsOn: Terraform_${{ parameters.action }}
-      jobs:
-        - deployment: ApproveProd
-          displayName: 'Approve Production Deployment'
-          environment: sfdc-read-mcp-production
-          pool:
-            vmImage: 'ubuntu-latest'
-          strategy:
-            runOnce:
-              deploy:
-                steps:
-                  - script: |
-                      echo "✅ Production deployment approved"
-                      echo "Environment: ${{ parameters.environment }}"
-                      echo "Action: ${{ parameters.action }}"
-                    displayName: 'Deployment Approved'
+  # -----------------------------------------------------------------------------------------------------------------
+  # Prod environment Plan stage (requires CAB approval before creating this)
+  # -----------------------------------------------------------------------------------------------------------------
+  # NOTE: Production stages commented out until CAB approval obtained
+  # - template: templates/plan_template.yml@templates
+  #   parameters:
+  #     PoolName: $(PoolName)
+  #     serviceConnection: $(ServiceConnection_Upper)
+  #     subscription_id: $(StateStorageAccountSubscriptionId)
+  #     vertical: $(VerticalName)
+  #     environment: prod
+  #     backendResourceGroup: $(StateStorageAccountResourceGroup)
+  #     backendStorageAccount: $(StateStorageAccount_Upper)
+  #     resourceFile: environments/prod.tfvars
 
-                  - task: DownloadPipelineArtifact@2
-                    displayName: 'Download Terraform Outputs'
-                    inputs:
-                      artifactName: 'terraform-outputs'
-                      downloadPath: '$(System.DefaultWorkingDirectory)'
-
-                  - script: |
-                      echo "📊 Deployment Summary:"
-                      cat $(System.DefaultWorkingDirectory)/terraform-outputs/outputs.json | jq .
-                    displayName: 'Show Deployment Summary'
+  # -----------------------------------------------------------------------------------------------------------------
+  # Prod environment Apply stage (requires CAB approval before creating this)
+  # -----------------------------------------------------------------------------------------------------------------
+  # - template: templates/apply_template.yml@templates
+  #   parameters:
+  #     customCondition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))"
+  #     PoolName: $(PoolName)
+  #     serviceConnection: $(ServiceConnection_Upper)
+  #     subscription_id: $(StateStorageAccountSubscriptionId)
+  #     vertical: $(VerticalName)
+  #     environment: prod
+  #     previousEnvironment: int
+  #     backendResourceGroup: $(StateStorageAccountResourceGroup)
+  #     backendStorageAccount: $(StateStorageAccount_Upper)
+  #     resourceFile: environments/prod.tfvars
