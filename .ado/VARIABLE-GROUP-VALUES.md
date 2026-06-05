@@ -10,21 +10,20 @@ Based on AMN infrastructure constants, here are the pre-filled values for each v
 
 **Automated values (script will set):**
 - `ARM_SUBSCRIPTION_ID`: `e764d23e-759d-4cd4-8b5f-27e4c703f6a8`
-- `TF_STATE_RESOURCE_GROUP`: `co-wus2-tfstate-rg-d01`
+- `TF_STATE_STORAGE_ACCOUNT`: `amncowus2tfstatesad01` ✅
+- `TF_STATE_CONTAINER`: `tfstate`
 - `APIM_NAME`: `amn-wus2-hub-apim-d02`
 - `APIM_RESOURCE_GROUP`: `amn-wus2-hub-rg-d01`
 - `SFDC_CLIENT_ID`: `mock-client-id`
 - `SFDC_CLIENT_SECRET`: `mock-client-secret` (secret)
 - `ARM_TENANT_ID`: `6232c2ec-fa42-4f27-92cd-787913fba489`
-- `TF_STATE_CONTAINER`: `tfstate`
 
 **You need to provide:**
-1. **TF_STATE_STORAGE_ACCOUNT**: Storage account name in `co-wus2-tfstate-rg-d01`
-   - Ask ops team or check: `az storage account list --resource-group co-wus2-tfstate-rg-d01 --query "[].name" -o tsv`
-
-2. **SFDC_READ_MCP_APP_ID**: Entra app registration ID for `api://sfdc-read-mcp-reader`
-   - Ask security team or check: `az ad app list --display-name "sfdc-read-mcp-reader" --query "[].appId" -o tsv`
-   - If doesn't exist yet, use placeholder: `00000000-0000-0000-0000-000000000000`
+1. **SFDC_READ_MCP_APP_ID**: Entra app registration ID for `api://sfdc-read-mcp-reader`
+   - Status: ❌ Does not exist yet
+   - Options:
+     - Use placeholder for now: `00000000-0000-0000-0000-000000000000`
+     - OR have security team create it first
 
 ---
 
@@ -36,25 +35,23 @@ Based on AMN infrastructure constants, here are the pre-filled values for each v
 
 **Automated values (script will set):**
 - `ARM_SUBSCRIPTION_ID`: `06ab2c80-382c-478f-bcd5-5e1afe984092`
-- `TF_STATE_RESOURCE_GROUP`: `co-wus2-tfstate-rg-p01`
+- `TF_STATE_STORAGE_ACCOUNT`: `amncowus2tfstatesap01` ✅
+- `TF_STATE_CONTAINER`: `tfstate`
 - `APIM_NAME`: `amn-wus2-hub-apim-d02` (int uses d02, not i02)
 - `APIM_RESOURCE_GROUP`: `amn-wus2-hub-rg-d01`
 - `ARM_TENANT_ID`: `6232c2ec-fa42-4f27-92cd-787913fba489`
-- `TF_STATE_CONTAINER`: `tfstate`
 
 **You need to provide:**
-1. **TF_STATE_STORAGE_ACCOUNT**: Storage account name in `co-wus2-tfstate-rg-p01`
-   - Ask ops team or check: `az storage account list --resource-group co-wus2-tfstate-rg-p01 --query "[].name" -o tsv`
-
-2. **SFDC_CLIENT_ID**: Salesforce Sandbox External Client App - Client ID
-   - From Salesforce admin team
+1. **SFDC_CLIENT_ID**: Salesforce Sandbox External Client App - Client ID
+   - Status: ❌ Pending - From Salesforce admin team
    - Created in Salesforce sandbox org
 
-3. **SFDC_CLIENT_SECRET**: Salesforce Sandbox External Client App - Client Secret
-   - From Salesforce admin team
+2. **SFDC_CLIENT_SECRET**: Salesforce Sandbox External Client App - Client Secret
+   - Status: ❌ Pending - From Salesforce admin team
    - Will be marked as secret in ADO
 
-4. **SFDC_READ_MCP_APP_ID**: Entra app registration ID (same as dev)
+3. **SFDC_READ_MCP_APP_ID**: Entra app registration ID
+   - Status: ❌ Does not exist yet (same placeholder as dev)
 
 ---
 

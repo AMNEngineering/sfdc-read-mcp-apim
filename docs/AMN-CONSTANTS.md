@@ -20,12 +20,12 @@
 
 ## Terraform State Storage
 
-| Environment | Resource Group | Subscription |
-|-------------|----------------|--------------|
-| Dev | `co-wus2-tfstate-rg-d01` | Non-prod (`e764d23e-759d-4cd4-8b5f-27e4c703f6a8`) |
-| Int/Prod | `co-wus2-tfstate-rg-p01` | Prod (`06ab2c80-382c-478f-bcd5-5e1afe984092`) |
+| Environment | Storage Account | Container | Subscription |
+|-------------|-----------------|-----------|--------------|
+| Dev | `amncowus2tfstatesad01` | `tfstate` | Non-prod (`e764d23e-759d-4cd4-8b5f-27e4c703f6a8`) |
+| Int/Prod | `amncowus2tfstatesap01` | `tfstate` | Prod (`06ab2c80-382c-478f-bcd5-5e1afe984092`) |
 
-**Note:** Storage account names within these resource groups vary by project/team.
+**Note:** Terraform state storage is managed centrally in Shared Services infrastructure.
 
 ## ADO Service Connections
 

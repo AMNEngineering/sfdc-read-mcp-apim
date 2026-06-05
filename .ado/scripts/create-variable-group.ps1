@@ -80,24 +80,22 @@ $variables["TF_STATE_CONTAINER"] = "tfstate"
 # Environment-specific variables
 switch ($Environment) {
     "dev" {
-        $variables["ARM_SUBSCRIPTION_ID"] = Read-Host "Enter non-prod Azure subscription ID"
-        $variables["TF_STATE_RESOURCE_GROUP"] = "co-wus2-tfstate-rg-d01"
-        $variables["TF_STATE_STORAGE_ACCOUNT"] = Read-Host "Enter Terraform state storage account name in co-wus2-tfstate-rg-d01"
+        $variables["ARM_SUBSCRIPTION_ID"] = "e764d23e-759d-4cd4-8b5f-27e4c703f6a8"
+        $variables["TF_STATE_STORAGE_ACCOUNT"] = "amncowus2tfstatesad01"
         $variables["APIM_NAME"] = "amn-wus2-hub-apim-d02"
         $variables["APIM_RESOURCE_GROUP"] = "amn-wus2-hub-rg-d01"
         $variables["SFDC_CLIENT_ID"] = "mock-client-id"
         $variables["SFDC_CLIENT_SECRET"] = "mock-client-secret"  # Mark as secret later
-        $variables["SFDC_READ_MCP_APP_ID"] = Read-Host "Enter Entra app registration ID (api://sfdc-read-mcp-reader)"
+        $variables["SFDC_READ_MCP_APP_ID"] = Read-Host "Enter Entra app registration ID (or use placeholder 00000000-0000-0000-0000-000000000000)"
     }
     "int" {
-        $variables["ARM_SUBSCRIPTION_ID"] = Read-Host "Enter prod Azure subscription ID"
-        $variables["TF_STATE_RESOURCE_GROUP"] = "co-wus2-tfstate-rg-p01"
-        $variables["TF_STATE_STORAGE_ACCOUNT"] = Read-Host "Enter Terraform state storage account name in co-wus2-tfstate-rg-p01"
+        $variables["ARM_SUBSCRIPTION_ID"] = "06ab2c80-382c-478f-bcd5-5e1afe984092"
+        $variables["TF_STATE_STORAGE_ACCOUNT"] = "amncowus2tfstatesap01"
         $variables["APIM_NAME"] = "amn-wus2-hub-apim-d02"
         $variables["APIM_RESOURCE_GROUP"] = "amn-wus2-hub-rg-d01"
         $variables["SFDC_CLIENT_ID"] = Read-Host "Enter Salesforce Sandbox client ID"
         $variables["SFDC_CLIENT_SECRET"] = Read-Host "Enter Salesforce Sandbox client secret (will be marked secret)" -AsSecureString | ConvertFrom-SecureString -AsPlainText
-        $variables["SFDC_READ_MCP_APP_ID"] = Read-Host "Enter Entra app registration ID (api://sfdc-read-mcp-reader)"
+        $variables["SFDC_READ_MCP_APP_ID"] = Read-Host "Enter Entra app registration ID (or use placeholder 00000000-0000-0000-0000-000000000000)"
     }
     "prod" {
         $variables["ARM_SUBSCRIPTION_ID"] = Read-Host "Enter prod Azure subscription ID"

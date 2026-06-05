@@ -29,10 +29,9 @@ Run the provided script to create variable groups for each environment:
 
 | Variable | Value | Secret | Source |
 |----------|-------|--------|--------|
-| `ARM_SUBSCRIPTION_ID` | Azure subscription ID (non-prod) | No | Azure |
+| `ARM_SUBSCRIPTION_ID` | `e764d23e-759d-4cd4-8b5f-27e4c703f6a8` | No | Azure |
 | `ARM_TENANT_ID` | `6232c2ec-fa42-4f27-92cd-787913fba489` | No | Azure |
-| `TF_STATE_RESOURCE_GROUP` | `co-wus2-tfstate-rg-d01` | No | Azure |
-| `TF_STATE_STORAGE_ACCOUNT` | Storage account in co-wus2-tfstate-rg-d01 | No | Azure |
+| `TF_STATE_STORAGE_ACCOUNT` | `amncowus2tfstatesad01` | No | Shared Services |
 | `TF_STATE_CONTAINER` | `tfstate` | No | Azure |
 | `APIM_NAME` | `amn-wus2-hub-apim-d02` | No | Azure |
 | `APIM_RESOURCE_GROUP` | `amn-wus2-hub-rg-d01` | No | Azure |
@@ -45,9 +44,8 @@ Run the provided script to create variable groups for each environment:
 ### Variable Group: `sfdc-read-mcp-apim-int-vars`
 
 Same structure as dev, with these changes:
-- `ARM_SUBSCRIPTION_ID` → Production subscription ID
-- `TF_STATE_RESOURCE_GROUP` → `co-wus2-tfstate-rg-p01`
-- `TF_STATE_STORAGE_ACCOUNT` → Storage account in co-wus2-tfstate-rg-p01
+- `ARM_SUBSCRIPTION_ID` → `06ab2c80-382c-478f-bcd5-5e1afe984092`
+- `TF_STATE_STORAGE_ACCOUNT` → `amncowus2tfstatesap01`
 - `SFDC_CLIENT_ID` → Salesforce Sandbox External Client App ID
 - `SFDC_CLIENT_SECRET` → Salesforce Sandbox secret (from Key Vault)
 
