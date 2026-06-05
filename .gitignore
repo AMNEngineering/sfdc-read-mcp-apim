@@ -1,0 +1,53 @@
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+*.tfplan
+*.tfvars.backup
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Sensitive data
+*.key
+*.pem
+*.pfx
+*.p12
+**/secrets/
+**/.env
+**/.env.local
+
+# Test results
+test-results-*.json
+test-results-*.xml
+*.log
+
+# PowerShell
+*.ps1xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Azure
+*.publishsettings
+
+# Build artifacts
+**/bin/
+**/obj/
+**/dist/
+**/build/
+
+# Temporary files
+*.tmp
+*.bak
+*.orig

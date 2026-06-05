@@ -1,0 +1,122 @@
+<policies>
+    <inbound>
+        <base />
+
+        <!-- 1. JWT Validation (Entra ID) -->
+        <validate-azure-ad-token tenant-id="${tenant_id}">
+            <client-application-ids>
+                <application-id>{{sfdc-read-mcp-app-id}}</application-id>
+            </client-application-ids>
+            <audiences>
+                <audience>api://{{sfdc-read-mcp-app-id}}</audience>
+            </audiences>
+        </validate-azure-ad-token>
+
+        <!-- 2. Extract User Identity from JWT -->
+        <set-variable name="userOid" value="@{
+            var authHeader = context.Request.Headers.GetValueOrDefault("Authorization","");
+            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
+                return "";
+            try {
+                var token = authHeader.Substring(7);
+                var jwt = token.AsJwt();
+                return jwt?.Claims.GetValueOrDefault("oid", jwt?.Claims.GetValueOrDefault("upn", "")) ?? "";
+            }
+            catch {
+                return "";
+            }
+        }" />
+        <set-header name="x-apim-user-id" exists-action="override">
+            <value>@((string)context.Variables["userOid"])</value>
+        </set-header>
+
+        <!-- 3. Correlation ID (passthrough or generate) -->
+        <set-variable name="correlationId" value="@(context.Request.Headers.GetValueOrDefault("x-correlation-id", Guid.NewGuid().ToString()))" />
+        <set-header name="x-correlation-id" exists-action="override">
+            <value>@((string)context.Variables["correlationId"])</value>
+        </set-header>
+
+        <!-- 4. Rate Limiting (300 requests per 60 seconds per user) -->
+        <rate-limit-by-key calls="300"
+                          renewal-period="60"
+                          counter-key="@((string)context.Variables["userOid"])"
+                          increment-condition="@(context.Response.StatusCode != 429)" />
+
+        <!-- 5. Acquire Salesforce OAuth Token (Client Credentials) -->
+        <send-request mode="new" response-variable-name="sfToken" timeout="20" ignore-error="false">
+            <set-url>{{nv-sfdc-read-mcp-token-url}}</set-url>
+            <set-method>POST</set-method>
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/x-www-form-urlencoded</value>
+            </set-header>
+            <set-body>@{
+                return $"grant_type=client_credentials&client_id={{{{nv-sfdc-read-mcp-client-id}}}}&client_secret={{{{nv-sfdc-read-mcp-client-secret}}}}";
+            }</set-body>
+        </send-request>
+
+        <!-- Extract Salesforce access token -->
+        <set-variable name="sfAccessToken" value="@{
+            var response = (IResponse)context.Variables["sfToken"];
+            var body = response.Body.As<JObject>();
+            return body["access_token"]?.ToString() ?? "";
+        }" />
+
+        <!-- 6. Authorization Header Swap (remove user JWT, inject Salesforce token) -->
+        <set-header name="Authorization" exists-action="override">
+            <value>@($"Bearer {context.Variables["sfAccessToken"]}")</value>
+        </set-header>
+
+        <!-- Remove APIM subscription key if present -->
+        <set-header name="Ocp-Apim-Subscription-Key" exists-action="delete" />
+
+        <!-- 7. Rewrite URI to Salesforce MCP endpoint path -->
+        <rewrite-uri template="{{nv-sfdc-read-mcp-path}}" copy-unmatched-params="true" />
+
+        <!-- 8. Route to Backend Pool -->
+        <set-backend-service backend-id="pool-sfdc-read-${environment}" />
+
+    </inbound>
+
+    <backend>
+        <base />
+    </backend>
+
+    <outbound>
+        <base />
+
+        <!-- Add correlation ID to response -->
+        <set-header name="x-correlation-id" exists-action="override">
+            <value>@((string)context.Variables["correlationId"])</value>
+        </set-header>
+
+        <!-- Add user identity to response for audit -->
+        <set-header name="x-apim-mcp-user" exists-action="override">
+            <value>@((string)context.Variables["userOid"])</value>
+        </set-header>
+
+        <!-- Add rate limit info to response -->
+        <set-header name="x-ratelimit-limit" exists-action="override">
+            <value>300</value>
+        </set-header>
+
+    </outbound>
+
+    <on-error>
+        <base />
+
+        <!-- Preserve correlation ID in error responses -->
+        <set-header name="x-correlation-id" exists-action="override">
+            <value>@((string)context.Variables.GetValueOrDefault("correlationId", Guid.NewGuid().ToString()))</value>
+        </set-header>
+
+        <!-- Add error details for debugging (sanitized) -->
+        <set-header name="x-apim-error" exists-action="override">
+            <value>@{
+                var statusCode = context.Response?.StatusCode ?? 500;
+                var reason = context.Response?.StatusReason ?? "Internal Error";
+                return $"{statusCode}: {reason}";
+            }</value>
+        </set-header>
+
+    </on-error>
+</policies>

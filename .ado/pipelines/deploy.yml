@@ -1,0 +1,205 @@
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - terraform/**
+      - policies/**
+      - .ado/pipelines/deploy.yml
+
+pr:
+  branches:
+    include:
+      - main
+
+parameters:
+  - name: environment
+    displayName: 'Environment'
+    type: string
+    default: 'dev'
+    values:
+      - dev
+      - int
+      - prod
+
+  - name: action
+    displayName: 'Terraform Action'
+    type: string
+    default: 'plan'
+    values:
+      - plan
+      - apply
+      - destroy
+
+variables:
+  - group: sfdc-read-mcp-apim-${{ parameters.environment }}-vars
+  - name: terraformVersion
+    value: '1.6.0'
+  - name: workingDirectory
+    value: '$(System.DefaultWorkingDirectory)/terraform'
+
+stages:
+  - stage: Terraform_${{ parameters.action }}
+    displayName: 'Terraform ${{ parameters.action }} (${{ parameters.environment }})'
+    jobs:
+      - job: TerraformJob
+        displayName: 'Terraform ${{ parameters.action }}'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          - checkout: self
+            displayName: 'Checkout repository'
+
+          - task: TerraformInstaller@0
+            displayName: 'Install Terraform'
+            inputs:
+              terraformVersion: $(terraformVersion)
+
+          - task: AzureCLI@2
+            displayName: 'Terraform Init'
+            inputs:
+              azureSubscription: 'Azure-APIM-SFDC-${{ parameters.environment }}'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              workingDirectory: $(workingDirectory)
+              inlineScript: |
+                terraform init \
+                  -backend-config="resource_group_name=$(TF_STATE_RESOURCE_GROUP)" \
+                  -backend-config="storage_account_name=$(TF_STATE_STORAGE_ACCOUNT)" \
+                  -backend-config="container_name=$(TF_STATE_CONTAINER)" \
+                  -backend-config="key=sfdc-read-mcp-${{ parameters.environment }}.tfstate"
+
+          - task: AzureCLI@2
+            displayName: 'Terraform ${{ parameters.action }}'
+            inputs:
+              azureSubscription: 'Azure-APIM-SFDC-${{ parameters.environment }}'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              workingDirectory: $(workingDirectory)
+              inlineScript: |
+                # Set Terraform variables from variable group
+                export TF_VAR_sfdc_client_id="$(SFDC_CLIENT_ID)"
+                export TF_VAR_sfdc_client_secret="$(SFDC_CLIENT_SECRET)"
+                export TF_VAR_sfdc_read_mcp_app_id="$(SFDC_READ_MCP_APP_ID)"
+
+                # Run terraform command
+                if [ "${{ parameters.action }}" == "plan" ]; then
+                  terraform plan \
+                    -var-file=environments/${{ parameters.environment }}.tfvars \
+                    -out=tfplan
+                elif [ "${{ parameters.action }}" == "apply" ]; then
+                  terraform apply \
+                    -var-file=environments/${{ parameters.environment }}.tfvars \
+                    -auto-approve
+
+                  # Capture outputs
+                  terraform output -json > outputs.json
+                elif [ "${{ parameters.action }}" == "destroy" ]; then
+                  terraform destroy \
+                    -var-file=environments/${{ parameters.environment }}.tfvars \
+                    -auto-approve
+                fi
+
+          - task: PublishBuildArtifact@1
+            displayName: 'Publish Terraform Plan'
+            condition: eq('${{ parameters.action }}', 'plan')
+            inputs:
+              PathtoPublish: '$(workingDirectory)/tfplan'
+              ArtifactName: 'terraform-plan'
+
+          - task: PublishBuildArtifact@1
+            displayName: 'Publish Terraform Outputs'
+            condition: eq('${{ parameters.action }}', 'apply')
+            inputs:
+              PathtoPublish: '$(workingDirectory)/outputs.json'
+              ArtifactName: 'terraform-outputs'
+
+  # Test stage (only runs on apply to dev/int, not prod)
+  - stage: Test_${{ parameters.environment }}
+    displayName: 'Test (${{ parameters.environment }})'
+    condition: |
+      and(
+        succeeded(),
+        eq('${{ parameters.action }}', 'apply'),
+        ne('${{ parameters.environment }}', 'prod')
+      )
+    dependsOn: Terraform_${{ parameters.action }}
+    jobs:
+      - job: TestJob
+        displayName: 'Run Test Suite'
+        pool:
+          vmImage: 'windows-latest'
+
+        steps:
+          - checkout: self
+            displayName: 'Checkout repository'
+
+          - task: DownloadBuildArtifact@0
+            displayName: 'Download Terraform Outputs'
+            inputs:
+              artifactName: 'terraform-outputs'
+              downloadPath: '$(System.DefaultWorkingDirectory)'
+
+          - task: AzurePowerShell@5
+            displayName: 'Run Test Harness'
+            inputs:
+              azureSubscription: 'Azure-APIM-SFDC-${{ parameters.environment }}'
+              scriptType: 'FilePath'
+              scriptPath: '$(System.DefaultWorkingDirectory)/test-harness/Invoke-SfdcReadTest.ps1'
+              scriptArguments: '-Environment ${{ parameters.environment }} -TestSuite all'
+              azurePowerShellVersion: 'LatestVersion'
+              pwsh: true
+
+          - task: PublishTestResults@2
+            displayName: 'Publish Test Results'
+            condition: always()
+            inputs:
+              testResultsFormat: 'NUnit'
+              testResultsFiles: '**/test-results-*.xml'
+              failTaskOnFailedTests: true
+
+          - task: PublishBuildArtifact@1
+            displayName: 'Publish Test Results JSON'
+            condition: always()
+            inputs:
+              PathtoPublish: '$(System.DefaultWorkingDirectory)/test-harness/test-results-*.json'
+              ArtifactName: 'test-results'
+
+  # Production approval stage
+  - stage: Approval_Prod
+    displayName: 'Production Approval'
+    condition: |
+      and(
+        succeeded(),
+        eq('${{ parameters.environment }}', 'prod'),
+        eq('${{ parameters.action }}', 'apply')
+      )
+    dependsOn: Terraform_${{ parameters.action }}
+    jobs:
+      - deployment: ApproveProd
+        displayName: 'Approve Production Deployment'
+        environment: sfdc-read-mcp-production
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - script: |
+                    echo "✅ Production deployment approved"
+                    echo "Environment: ${{ parameters.environment }}"
+                    echo "Action: ${{ parameters.action }}"
+                  displayName: 'Deployment Approved'
+
+                - task: DownloadBuildArtifact@0
+                  displayName: 'Download Terraform Outputs'
+                  inputs:
+                    artifactName: 'terraform-outputs'
+                    downloadPath: '$(System.DefaultWorkingDirectory)'
+
+                - script: |
+                    echo "📊 Deployment Summary:"
+                    cat $(System.DefaultWorkingDirectory)/terraform-outputs/outputs.json | jq .
+                  displayName: 'Show Deployment Summary'
