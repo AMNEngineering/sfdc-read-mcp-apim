@@ -22,30 +22,30 @@ module "named_values" {
   named_values = {
     # Entra app ID (plain text, used in policy for JWT validation)
     "sfdc-read-mcp-app-id" = {
-      display_name = "SFDC Read MCP App ID"
+      display_name = "SFDC-Read-MCP-App-ID"
       value        = var.sfdc_read_mcp_app_id
     }
 
     # Salesforce OAuth credentials (secrets)
     "nv-sfdc-read-mcp-client-id" = {
-      display_name = "SFDC MCP Client ID"
+      display_name = "SFDC-MCP-Client-ID"
       secret_value = var.sfdc_client_id
     }
 
     "nv-sfdc-read-mcp-client-secret" = {
-      display_name = "SFDC MCP Client Secret"
+      display_name = "SFDC-MCP-Client-Secret"
       secret_value = var.sfdc_client_secret
     }
 
     # Salesforce OAuth token URL
     "nv-sfdc-read-mcp-token-url" = {
-      display_name = "SFDC MCP Token URL"
+      display_name = "SFDC-MCP-Token-URL"
       value        = var.sfdc_token_url
     }
 
     # Salesforce MCP endpoint path
     "nv-sfdc-read-mcp-path" = {
-      display_name = "SFDC MCP Path"
+      display_name = "SFDC-MCP-Path"
       value        = var.sfdc_mcp_path
     }
   }
