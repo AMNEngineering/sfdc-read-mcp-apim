@@ -30,7 +30,7 @@ variables:
   StateStorageAccount_Lower: 'amncowus2tfstatesad01'
   StateStorageAccount_Upper: 'amncowus2tfstatesap01'
   VerticalName: 'sfdc-read'
-  PoolName: ''  # Use Azure Pipelines (Microsoft-hosted)
+  PoolName: 'Azure Pipelines'  # Microsoft-hosted agents
   system.debug: 'true'
 
 stages:
