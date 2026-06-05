@@ -38,6 +38,11 @@ variables:
     value: '1.6.0'
   - name: workingDirectory
     value: '$(System.DefaultWorkingDirectory)/terraform'
+  - name: serviceConnection
+    ${{ if eq(parameters.environment, 'dev') }}:
+      value: 'ADO-AMNEngineering-CloudOps-lower-AMN-IPS-ServiceConnection'
+    ${{ else }}:
+      value: 'ADO-AMNEngineering-CloudOps-Upper-AMN-IPS-AutomaticSC'
 
 stages:
   - stage: Terraform_${{ parameters.action }}
@@ -60,7 +65,7 @@ stages:
           - task: AzureCLI@2
             displayName: 'Terraform Init'
             inputs:
-              azureSubscription: ${{ if eq(parameters.environment, 'dev') }}ADO-AMNEngineering-CloudOps-lower-AMN-IPS-ServiceConnection${{ else }}ADO-AMNEngineering-CloudOps-Upper-AMN-IPS-AutomaticSC${{ end }}
+              azureSubscription: $(serviceConnection)
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               workingDirectory: $(workingDirectory)
@@ -74,7 +79,7 @@ stages:
           - task: AzureCLI@2
             displayName: 'Terraform ${{ parameters.action }}'
             inputs:
-              azureSubscription: ${{ if eq(parameters.environment, 'dev') }}ADO-AMNEngineering-CloudOps-lower-AMN-IPS-ServiceConnection${{ else }}ADO-AMNEngineering-CloudOps-Upper-AMN-IPS-AutomaticSC${{ end }}
+              azureSubscription: $(serviceConnection)
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               workingDirectory: $(workingDirectory)
@@ -145,7 +150,7 @@ stages:
           - task: AzurePowerShell@5
             displayName: 'Run Test Harness'
             inputs:
-              azureSubscription: ${{ if eq(parameters.environment, 'dev') }}ADO-AMNEngineering-CloudOps-lower-AMN-IPS-ServiceConnection${{ else }}ADO-AMNEngineering-CloudOps-Upper-AMN-IPS-AutomaticSC${{ end }}
+              azureSubscription: $(serviceConnection)
               scriptType: 'FilePath'
               scriptPath: '$(System.DefaultWorkingDirectory)/test-harness/Invoke-SfdcReadTest.ps1'
               scriptArguments: '-Environment ${{ parameters.environment }} -TestSuite all'
