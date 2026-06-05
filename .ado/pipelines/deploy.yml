@@ -57,7 +57,7 @@ stages:
           - checkout: self
             displayName: 'Checkout repository'
 
-          - task: TerraformInstaller@0
+          - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
             displayName: 'Install Terraform'
             inputs:
               terraformVersion: $(terraformVersion)
@@ -107,14 +107,14 @@ stages:
                     -auto-approve
                 fi
 
-          - task: PublishBuildArtifact@1
+          - task: PublishPipelineArtifact@1
             displayName: 'Publish Terraform Plan'
             condition: eq('${{ parameters.action }}', 'plan')
             inputs:
               PathtoPublish: '$(workingDirectory)/tfplan'
               ArtifactName: 'terraform-plan'
 
-          - task: PublishBuildArtifact@1
+          - task: PublishPipelineArtifact@1
             displayName: 'Publish Terraform Outputs'
             condition: eq('${{ parameters.action }}', 'apply')
             inputs:
@@ -141,7 +141,7 @@ stages:
           - checkout: self
             displayName: 'Checkout repository'
 
-          - task: DownloadBuildArtifact@0
+          - task: DownloadPipelineArtifact@2
             displayName: 'Download Terraform Outputs'
             inputs:
               artifactName: 'terraform-outputs'
@@ -165,7 +165,7 @@ stages:
               testResultsFiles: '**/test-results-*.xml'
               failTaskOnFailedTests: true
 
-          - task: PublishBuildArtifact@1
+          - task: PublishPipelineArtifact@1
             displayName: 'Publish Test Results JSON'
             condition: always()
             inputs:
@@ -198,7 +198,7 @@ stages:
                     echo "Action: ${{ parameters.action }}"
                   displayName: 'Deployment Approved'
 
-                - task: DownloadBuildArtifact@0
+                - task: DownloadPipelineArtifact@2
                   displayName: 'Download Terraform Outputs'
                   inputs:
                     artifactName: 'terraform-outputs'
