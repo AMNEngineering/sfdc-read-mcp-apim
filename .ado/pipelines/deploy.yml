@@ -172,39 +172,39 @@ stages:
               PathtoPublish: '$(System.DefaultWorkingDirectory)/test-harness/test-results-*.json'
               ArtifactName: 'test-results'
 
-  # Production approval stage
-  - stage: Approval_Prod
-    displayName: 'Production Approval'
-    condition: |
-      and(
-        succeeded(),
-        eq('${{ parameters.environment }}', 'prod'),
-        eq('${{ parameters.action }}', 'apply')
-      )
-    dependsOn: Terraform_${{ parameters.action }}
-    jobs:
-      - deployment: ApproveProd
-        displayName: 'Approve Production Deployment'
-        environment: sfdc-read-mcp-production
-        pool:
-          vmImage: 'ubuntu-latest'
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - script: |
-                    echo "✅ Production deployment approved"
-                    echo "Environment: ${{ parameters.environment }}"
-                    echo "Action: ${{ parameters.action }}"
-                  displayName: 'Deployment Approved'
+  # Production approval stage (only runs for prod deployments)
+  - ${{ if eq(parameters.environment, 'prod') }}:
+    - stage: Approval_Prod
+      displayName: 'Production Approval'
+      condition: |
+        and(
+          succeeded(),
+          eq('${{ parameters.action }}', 'apply')
+        )
+      dependsOn: Terraform_${{ parameters.action }}
+      jobs:
+        - deployment: ApproveProd
+          displayName: 'Approve Production Deployment'
+          environment: sfdc-read-mcp-production
+          pool:
+            vmImage: 'ubuntu-latest'
+          strategy:
+            runOnce:
+              deploy:
+                steps:
+                  - script: |
+                      echo "✅ Production deployment approved"
+                      echo "Environment: ${{ parameters.environment }}"
+                      echo "Action: ${{ parameters.action }}"
+                    displayName: 'Deployment Approved'
 
-                - task: DownloadPipelineArtifact@2
-                  displayName: 'Download Terraform Outputs'
-                  inputs:
-                    artifactName: 'terraform-outputs'
-                    downloadPath: '$(System.DefaultWorkingDirectory)'
+                  - task: DownloadPipelineArtifact@2
+                    displayName: 'Download Terraform Outputs'
+                    inputs:
+                      artifactName: 'terraform-outputs'
+                      downloadPath: '$(System.DefaultWorkingDirectory)'
 
-                - script: |
-                    echo "📊 Deployment Summary:"
-                    cat $(System.DefaultWorkingDirectory)/terraform-outputs/outputs.json | jq .
-                  displayName: 'Show Deployment Summary'
+                  - script: |
+                      echo "📊 Deployment Summary:"
+                      cat $(System.DefaultWorkingDirectory)/terraform-outputs/outputs.json | jq .
+                    displayName: 'Show Deployment Summary'
