@@ -69,7 +69,14 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               workingDirectory: $(workingDirectory)
+              addSpnToEnvironment: true
               inlineScript: |
+                # Export service principal credentials for Terraform
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey
+                export ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
+                export ARM_TENANT_ID=$(ARM_TENANT_ID)
+
                 terraform init \
                   -backend-config="resource_group_name=$(TF_STATE_RESOURCE_GROUP)" \
                   -backend-config="storage_account_name=$(TF_STATE_STORAGE_ACCOUNT)" \
@@ -83,7 +90,14 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               workingDirectory: $(workingDirectory)
+              addSpnToEnvironment: true
               inlineScript: |
+                # Export service principal credentials for Terraform
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey
+                export ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
+                export ARM_TENANT_ID=$(ARM_TENANT_ID)
+
                 # Set Terraform variables from variable group
                 export TF_VAR_sfdc_client_id="$(SFDC_CLIENT_ID)"
                 export TF_VAR_sfdc_client_secret="$(SFDC_CLIENT_SECRET)"
