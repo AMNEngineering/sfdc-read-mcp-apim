@@ -6,7 +6,7 @@ trigger:
       - main
   paths:
     include:
-      - terraform/**
+      - infrastructure/**
       - policies/**
       - .ado/pipelines/deploy.yml
 
