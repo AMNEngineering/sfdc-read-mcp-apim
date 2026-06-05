@@ -85,10 +85,7 @@ stages:
     dependsOn: dev_apply
     condition: succeeded()
     pool:
-      ${{ if ne(variables['PoolName'], '') }}:
-        name: $(PoolName)
-      ${{ else }}:
-        vmImage: 'windows-latest'
+      vmImage: 'windows-latest'
     jobs:
       - job: RunTests
         displayName: 'Run Test Harness'

@@ -26,11 +26,14 @@ resource "azurerm_api_management_named_value" "this" {
 
   # Secret stored directly in APIM (not recommended for prod)
   secret = each.value.secret_value != null ? true : (each.value.key_vault_secret_id != null ? true : false)
-  value_from_key_vault = each.value.key_vault_secret_id != null ? [
-    {
+
+  # Key Vault reference (use dynamic block syntax)
+  dynamic "value_from_key_vault" {
+    for_each = each.value.key_vault_secret_id != null ? [1] : []
+    content {
       secret_id = each.value.key_vault_secret_id
     }
-  ] : null
+  }
 
   tags = var.tags
 
