@@ -39,8 +39,7 @@
         <!-- 4. Rate Limiting (300 requests per 60 seconds per user) -->
         <rate-limit-by-key calls="300"
                           renewal-period="60"
-                          counter-key="@((string)context.Variables["userOid"])"
-                          increment-condition="@(context.Response.StatusCode != 429)" />
+                          counter-key="@((string)context.Variables["userOid"])" />
 
         <!-- 5. Acquire Salesforce OAuth Token (Client Credentials) -->
         <send-request mode="new" response-variable-name="sfToken" timeout="20" ignore-error="false">
