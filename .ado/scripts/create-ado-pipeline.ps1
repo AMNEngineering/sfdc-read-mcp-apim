@@ -50,45 +50,60 @@ if ($existingPipeline) {
     exit 0
 }
 
-# Create pipeline
-Write-Host "Creating pipeline '$PipelineName'..." -ForegroundColor Green
-Write-Host "  Repository: $RepositoryName" -ForegroundColor Gray
-Write-Host "  YAML path: $YamlPath" -ForegroundColor Gray
+# Note: az pipelines create with GitHub requires interactive authentication
+# which can lock up PowerShell. Using manual approach instead.
 
-try {
-    $pipeline = az pipelines create `
-        --name $PipelineName `
-        --description "Terraform deployment pipeline for SFDC Read MCP APIM contract" `
-        --repository $RepositoryName `
-        --repository-type github `
-        --branch main `
-        --yml-path $YamlPath `
-        --skip-first-run `
-        --output json | ConvertFrom-Json
+Write-Host "`n⚠️  Pipeline creation requires GitHub authentication" -ForegroundColor Yellow
+Write-Host "To avoid PowerShell lockup, use the manual approach below:" -ForegroundColor Yellow
 
-    Write-Host "`n✅ Pipeline created successfully!" -ForegroundColor Green
-    Write-Host "   Pipeline ID: $($pipeline.id)" -ForegroundColor Gray
-    Write-Host "   Pipeline Name: $($pipeline.name)" -ForegroundColor Gray
-    Write-Host "   View at: $OrganizationUrl/$ProjectName/_build?definitionId=$($pipeline.id)" -ForegroundColor Cyan
+Write-Host "`n📋 Manual Pipeline Creation Steps:" -ForegroundColor Cyan
+Write-Host "1. Open browser: $OrganizationUrl/$ProjectName/_build" -ForegroundColor White
+Write-Host "2. Click 'New pipeline'" -ForegroundColor White
+Write-Host "3. Select 'GitHub'" -ForegroundColor White
+Write-Host "4. Authenticate to GitHub (one-time OAuth)" -ForegroundColor White
+Write-Host "5. Select repository: $RepositoryName" -ForegroundColor White
+Write-Host "6. Select 'Existing Azure Pipelines YAML file'" -ForegroundColor White
+Write-Host "7. Branch: main" -ForegroundColor White
+Write-Host "8. Path: /$YamlPath" -ForegroundColor White
+Write-Host "9. Click 'Continue' then 'Save' (don't run yet)" -ForegroundColor White
 
-    Write-Host "`n📋 Next steps:" -ForegroundColor Yellow
-    Write-Host "   1. Ensure all variable groups are created (dev/int/prod)" -ForegroundColor Gray
-    Write-Host "   2. Grant pipeline access to variable groups" -ForegroundColor Gray
-    Write-Host "   3. Create service connections: Azure-APIM-SFDC-{dev|int|prod}" -ForegroundColor Gray
-    Write-Host "   4. Create ADO environment: sfdc-read-mcp-production (with approval gate)" -ForegroundColor Gray
-    Write-Host "   5. Run pipeline manually: az pipelines run --name '$PipelineName' --parameters environment=dev action=plan" -ForegroundColor Gray
+Write-Host "`n💡 Alternative: Create via ADO REST API with your existing auth" -ForegroundColor Cyan
+$createPipeline = Read-Host "Would you like to try automated creation? (y/n)"
+
+if ($createPipeline -eq 'y') {
+    Write-Host "`nAttempting automated creation..." -ForegroundColor Green
+    Write-Host "Note: This may prompt for GitHub authentication" -ForegroundColor Yellow
+
+    try {
+        $pipeline = az pipelines create `
+            --name $PipelineName `
+            --description "Terraform deployment pipeline for SFDC Read MCP APIM contract" `
+            --repository $RepositoryName `
+            --repository-type github `
+            --branch main `
+            --yml-path $YamlPath `
+            --skip-first-run `
+            --output json | ConvertFrom-Json
+
+        Write-Host "`n✅ Pipeline created successfully!" -ForegroundColor Green
+        Write-Host "   Pipeline ID: $($pipeline.id)" -ForegroundColor Gray
+        Write-Host "   Pipeline Name: $($pipeline.name)" -ForegroundColor Gray
+        Write-Host "   View at: $OrganizationUrl/$ProjectName/_build?definitionId=$($pipeline.id)" -ForegroundColor Cyan
+    }
+    catch {
+        Write-Host "`n❌ Automated creation failed: $_" -ForegroundColor Red
+        Write-Host "Please use manual steps above" -ForegroundColor Yellow
+        exit 1
+    }
 }
-catch {
-    Write-Host "`n❌ Failed to create pipeline" -ForegroundColor Red
-    Write-Host "Error: $_" -ForegroundColor Red
-    Write-Host "`nManual creation steps:" -ForegroundColor Yellow
-    Write-Host "   1. Go to: $OrganizationUrl/$ProjectName/_build" -ForegroundColor Gray
-    Write-Host "   2. Click 'New pipeline'" -ForegroundColor Gray
-    Write-Host "   3. Select 'GitHub'" -ForegroundColor Gray
-    Write-Host "   4. Select repository: $RepositoryName" -ForegroundColor Gray
-    Write-Host "   5. Select 'Existing Azure Pipelines YAML file'" -ForegroundColor Gray
-    Write-Host "   6. Path: /$YamlPath" -ForegroundColor Gray
-    Write-Host "   7. Save (don't run yet)" -ForegroundColor Gray
-
-    exit 1
+else {
+    Write-Host "`n✅ Use manual steps above to create pipeline" -ForegroundColor Green
+    Write-Host "This avoids authentication prompts and PowerShell lockups" -ForegroundColor Gray
 }
+
+Write-Host "`n📋 After pipeline is created:" -ForegroundColor Yellow
+Write-Host "   1. Ensure all variable groups are created (dev/int/prod)" -ForegroundColor Gray
+Write-Host "   2. Grant pipeline access to variable groups" -ForegroundColor Gray
+Write-Host "   3. Service connections already exist (ADO-AMNEngineering-CloudOps-lower/Upper)" -ForegroundColor Gray
+Write-Host "   4. Create ADO environment: sfdc-read-mcp-production (with approval gate)" -ForegroundColor Gray
+Write-Host "   5. Run pipeline manually: az pipelines run --name '$PipelineName' --parameters environment=dev action=plan" -ForegroundColor Gray
