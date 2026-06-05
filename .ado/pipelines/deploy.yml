@@ -34,8 +34,19 @@ variables:
   system.debug: 'true'
 
 stages:
-  # NOTE: Skipping build_template (Checkov scan) for initial deployment validation
-  # TODO: Add back once core Terraform deployment is working
+  # -----------------------------------------------------------------------------------------------------------------
+  # Minimal Build stage (plan_template depends on it)
+  # -----------------------------------------------------------------------------------------------------------------
+  - stage: Build
+    displayName: "Build"
+    pool:
+      vmImage: 'ubuntu-latest'
+    jobs:
+      - job: Checkout
+        displayName: 'Checkout Code'
+        steps:
+          - checkout: self
+            clean: true
 
   # -----------------------------------------------------------------------------------------------------------------
   # Dev environment Plan stage
