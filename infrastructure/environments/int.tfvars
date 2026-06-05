@@ -14,9 +14,8 @@ sfdc_mcp_path = "/platform/mcp/v1/sandbox/platform/sobject-reads"
 # Azure AD tenant (AMN Healthcare)
 tenant_id = "6232c2ec-fa42-4f27-92cd-787913fba489"
 
-# Entra app registration (to be created by security team)
-# Placeholder - replace with actual app ID
-sfdc_read_mcp_app_id = "00000000-0000-0000-0000-000000000000"
+# Entra app registration: SFDC Read MCP Reader Int
+sfdc_read_mcp_app_id = "976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03"
 
 # Salesforce credentials (from Key Vault or ADO variable group)
 # These should be injected at runtime, not committed
