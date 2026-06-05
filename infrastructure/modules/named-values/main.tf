@@ -35,7 +35,7 @@ resource "azurerm_api_management_named_value" "this" {
     }
   }
 
-  tags = var.tags
+  # Note: azurerm_api_management_named_value does not support tags
 
   lifecycle {
     # Prevent replacement if only secret value changed (causes downtime)
