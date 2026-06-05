@@ -30,7 +30,7 @@ variables:
   StateStorageAccount_Lower: 'amncowus2tfstatesad01'
   StateStorageAccount_Upper: 'amncowus2tfstatesap01'
   VerticalName: 'sfdc-read'
-  PoolName: 'generic_build_vmss-linux'
+  PoolName: ''  # Use Azure Pipelines (Microsoft-hosted)
   system.debug: 'true'
 
 stages:
