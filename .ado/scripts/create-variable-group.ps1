@@ -58,9 +58,11 @@ if ($existingGroup) {
 }
 else {
     Write-Host "Creating variable group '$groupName'..." -ForegroundColor Green
+    # Create with a dummy variable first (az requires at least one variable)
     $newGroup = az pipelines variable-group create `
         --name $groupName `
         --description "Variables for SFDC Read MCP APIM deployment ($Environment)" `
+        --variables "PLACEHOLDER=temp" `
         --authorize true `
         --output json | ConvertFrom-Json
 
@@ -79,8 +81,8 @@ $variables["TF_STATE_CONTAINER"] = "tfstate"
 switch ($Environment) {
     "dev" {
         $variables["ARM_SUBSCRIPTION_ID"] = Read-Host "Enter non-prod Azure subscription ID"
-        $variables["TF_STATE_RESOURCE_GROUP"] = Read-Host "Enter Terraform state resource group name"
-        $variables["TF_STATE_STORAGE_ACCOUNT"] = Read-Host "Enter Terraform state storage account name"
+        $variables["TF_STATE_RESOURCE_GROUP"] = "co-wus2-tfstate-rg-d01"
+        $variables["TF_STATE_STORAGE_ACCOUNT"] = Read-Host "Enter Terraform state storage account name in co-wus2-tfstate-rg-d01"
         $variables["APIM_NAME"] = "amn-wus2-hub-apim-d02"
         $variables["APIM_RESOURCE_GROUP"] = "amn-wus2-hub-rg-d01"
         $variables["SFDC_CLIENT_ID"] = "mock-client-id"
@@ -88,9 +90,9 @@ switch ($Environment) {
         $variables["SFDC_READ_MCP_APP_ID"] = Read-Host "Enter Entra app registration ID (api://sfdc-read-mcp-reader)"
     }
     "int" {
-        $variables["ARM_SUBSCRIPTION_ID"] = Read-Host "Enter non-prod Azure subscription ID"
-        $variables["TF_STATE_RESOURCE_GROUP"] = Read-Host "Enter Terraform state resource group name"
-        $variables["TF_STATE_STORAGE_ACCOUNT"] = Read-Host "Enter Terraform state storage account name"
+        $variables["ARM_SUBSCRIPTION_ID"] = Read-Host "Enter prod Azure subscription ID"
+        $variables["TF_STATE_RESOURCE_GROUP"] = "co-wus2-tfstate-rg-p01"
+        $variables["TF_STATE_STORAGE_ACCOUNT"] = Read-Host "Enter Terraform state storage account name in co-wus2-tfstate-rg-p01"
         $variables["APIM_NAME"] = "amn-wus2-hub-apim-d02"
         $variables["APIM_RESOURCE_GROUP"] = "amn-wus2-hub-rg-d01"
         $variables["SFDC_CLIENT_ID"] = Read-Host "Enter Salesforce Sandbox client ID"
@@ -99,8 +101,8 @@ switch ($Environment) {
     }
     "prod" {
         $variables["ARM_SUBSCRIPTION_ID"] = Read-Host "Enter prod Azure subscription ID"
-        $variables["TF_STATE_RESOURCE_GROUP"] = Read-Host "Enter Terraform state resource group name"
-        $variables["TF_STATE_STORAGE_ACCOUNT"] = Read-Host "Enter Terraform state storage account name"
+        $variables["TF_STATE_RESOURCE_GROUP"] = "co-wus2-tfstate-rg-p01"
+        $variables["TF_STATE_STORAGE_ACCOUNT"] = Read-Host "Enter Terraform state storage account name in co-wus2-tfstate-rg-p01"
         $variables["APIM_NAME"] = "amn-wus2-hub-apim-p02"
         $variables["APIM_RESOURCE_GROUP"] = "amn-wus2-hub-rg-p01"
         $variables["SFDC_CLIENT_ID"] = Read-Host "Enter Salesforce Production client ID"
@@ -109,10 +111,9 @@ switch ($Environment) {
     }
 }
 
-# Add service principal credentials (shared setup)
-Write-Host "`nService Principal Credentials:" -ForegroundColor Cyan
-$variables["ARM_CLIENT_ID"] = Read-Host "Enter service principal client ID"
-$variables["ARM_CLIENT_SECRET"] = Read-Host "Enter service principal client secret (will be marked secret)" -AsSecureString | ConvertFrom-SecureString -AsPlainText
+# Note: Service principal credentials managed by existing service connections
+# Dev/QA: ADO-AMNEngineering-CloudOps-lower-AMN-IPS-ServiceConnection
+# Int/Prod: ADO-AMNEngineering-CloudOps-Upper-AMN-IPS-AutomaticSC
 
 # Add variables to group
 Write-Host "`nAdding variables to group..." -ForegroundColor Cyan

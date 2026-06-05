@@ -29,22 +29,25 @@ Run the provided script to create variable groups for each environment:
 
 | Variable | Value | Secret | Source |
 |----------|-------|--------|--------|
-| `ARM_CLIENT_ID` | Service principal client ID | No | Azure |
-| `ARM_CLIENT_SECRET` | Service principal secret | **Yes** | Key Vault |
 | `ARM_SUBSCRIPTION_ID` | Azure subscription ID (non-prod) | No | Azure |
 | `ARM_TENANT_ID` | `6232c2ec-fa42-4f27-92cd-787913fba489` | No | Azure |
-| `TF_STATE_RESOURCE_GROUP` | Terraform state RG | No | Azure |
-| `TF_STATE_STORAGE_ACCOUNT` | Terraform state storage account | No | Azure |
+| `TF_STATE_RESOURCE_GROUP` | `co-wus2-tfstate-rg-d01` | No | Azure |
+| `TF_STATE_STORAGE_ACCOUNT` | Storage account in co-wus2-tfstate-rg-d01 | No | Azure |
 | `TF_STATE_CONTAINER` | `tfstate` | No | Azure |
 | `APIM_NAME` | `amn-wus2-hub-apim-d02` | No | Azure |
 | `APIM_RESOURCE_GROUP` | `amn-wus2-hub-rg-d01` | No | Azure |
-| `SFDC_CLIENT_ID` | Mock client ID (dev only) | No | Mock |
-| `SFDC_CLIENT_SECRET` | Mock secret (dev only) | **Yes** | Mock |
+| `SFDC_CLIENT_ID` | `mock-client-id` (dev only) | No | Mock |
+| `SFDC_CLIENT_SECRET` | `mock-client-secret` (dev only) | **Yes** | Mock |
 | `SFDC_READ_MCP_APP_ID` | Entra app registration ID | No | Entra |
+
+**Note:** ARM_CLIENT_ID and ARM_CLIENT_SECRET are managed by the service connection, not in variable groups.
 
 ### Variable Group: `sfdc-read-mcp-apim-int-vars`
 
 Same structure as dev, with these changes:
+- `ARM_SUBSCRIPTION_ID` → Production subscription ID
+- `TF_STATE_RESOURCE_GROUP` → `co-wus2-tfstate-rg-p01`
+- `TF_STATE_STORAGE_ACCOUNT` → Storage account in co-wus2-tfstate-rg-p01
 - `SFDC_CLIENT_ID` → Salesforce Sandbox External Client App ID
 - `SFDC_CLIENT_SECRET` → Salesforce Sandbox secret (from Key Vault)
 
@@ -52,6 +55,8 @@ Same structure as dev, with these changes:
 
 Same structure as dev, with these changes:
 - `ARM_SUBSCRIPTION_ID` → Production subscription ID
+- `TF_STATE_RESOURCE_GROUP` → `co-wus2-tfstate-rg-p01`
+- `TF_STATE_STORAGE_ACCOUNT` → Storage account in co-wus2-tfstate-rg-p01
 - `APIM_NAME` → `amn-wus2-hub-apim-p02`
 - `APIM_RESOURCE_GROUP` → `amn-wus2-hub-rg-p01`
 - `SFDC_CLIENT_ID` → Salesforce Production External Client App ID
@@ -59,38 +64,28 @@ Same structure as dev, with these changes:
 
 ---
 
-## Step 2: Create Service Connections
+## Step 2: Service Connections (Pre-existing)
 
-Create three Azure Resource Manager service connections (one per environment):
+✅ **Already exist** - No creation needed:
 
-### Dev Service Connection
-- **Name:** `Azure-APIM-SFDC-dev`
-- **Type:** Azure Resource Manager (Workload Identity Federation recommended)
-- **Scope:** Subscription
-- **Subscription ID:** Non-prod subscription
-- **Resource Group:** (leave empty for subscription-level)
-- **Service Principal:** Use existing or create new
-- **Permissions needed:**
-  - APIM Contributor on `amn-wus2-hub-apim-d02`
-  - Storage Blob Data Contributor on Terraform state storage
+### Dev/QA Service Connection
+- **Name:** `ADO-AMNEngineering-CloudOps-lower-AMN-IPS-ServiceConnection`
+- **Scope:** Non-prod subscription
+- **Used by:** dev environment
 
-### Int Service Connection
-- **Name:** `Azure-APIM-SFDC-int`
-- Same as dev (same APIM instance)
+### Int/Prod Service Connection
+- **Name:** `ADO-AMNEngineering-CloudOps-Upper-AMN-IPS-AutomaticSC`
+- **Scope:** Production subscription
+- **Used by:** int and prod environments
 
-### Prod Service Connection
-- **Name:** `Azure-APIM-SFDC-prod`
-- **Subscription ID:** Production subscription
-- **Permissions needed:**
-  - APIM Contributor on `amn-wus2-hub-apim-p02`
-  - Storage Blob Data Contributor on Terraform state storage
-
-**Manual Creation Steps:**
-1. Go to: https://dev.azure.com/AMNEngineering/Cloud%20Operations/_settings/adminservices
-2. Click "New service connection" → "Azure Resource Manager"
-3. Select "Workload Identity federation (automatic)"
-4. Fill in subscription and service connection name
-5. Grant access to all pipelines (or specific pipeline after creation)
+**Required Permissions (verify with Ops team):**
+- APIM Contributor on APIM instances:
+  - Dev: `amn-wus2-hub-apim-d02`
+  - Int: `amn-wus2-hub-apim-d02`
+  - Prod: `amn-wus2-hub-apim-p02`
+- Storage Blob Data Contributor on Terraform state storage:
+  - Dev: `co-wus2-tfstate-rg-d01`
+  - Int/Prod: `co-wus2-tfstate-rg-p01`
 
 ---
 

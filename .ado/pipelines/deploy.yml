@@ -60,7 +60,7 @@ stages:
           - task: AzureCLI@2
             displayName: 'Terraform Init'
             inputs:
-              azureSubscription: 'Azure-APIM-SFDC-${{ parameters.environment }}'
+              azureSubscription: '${{ parameters.environment == 'dev' && 'ADO-AMNEngineering-CloudOps-lower-AMN-IPS-ServiceConnection' || 'ADO-AMNEngineering-CloudOps-Upper-AMN-IPS-AutomaticSC' }}'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               workingDirectory: $(workingDirectory)
@@ -74,7 +74,7 @@ stages:
           - task: AzureCLI@2
             displayName: 'Terraform ${{ parameters.action }}'
             inputs:
-              azureSubscription: 'Azure-APIM-SFDC-${{ parameters.environment }}'
+              azureSubscription: '${{ parameters.environment == 'dev' && 'ADO-AMNEngineering-CloudOps-lower-AMN-IPS-ServiceConnection' || 'ADO-AMNEngineering-CloudOps-Upper-AMN-IPS-AutomaticSC' }}'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               workingDirectory: $(workingDirectory)
@@ -145,7 +145,7 @@ stages:
           - task: AzurePowerShell@5
             displayName: 'Run Test Harness'
             inputs:
-              azureSubscription: 'Azure-APIM-SFDC-${{ parameters.environment }}'
+              azureSubscription: '${{ parameters.environment == 'dev' && 'ADO-AMNEngineering-CloudOps-lower-AMN-IPS-ServiceConnection' || 'ADO-AMNEngineering-CloudOps-Upper-AMN-IPS-AutomaticSC' }}'
               scriptType: 'FilePath'
               scriptPath: '$(System.DefaultWorkingDirectory)/test-harness/Invoke-SfdcReadTest.ps1'
               scriptArguments: '-Environment ${{ parameters.environment }} -TestSuite all'
