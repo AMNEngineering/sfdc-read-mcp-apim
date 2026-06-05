@@ -62,51 +62,29 @@ stages:
             inputs:
               terraformVersion: $(terraformVersion)
 
-          - task: AzureCLI@2
+          - task: Bash@3
             displayName: 'Terraform Init'
             inputs:
-              azureSubscription: $(serviceConnection)
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
+              targetType: 'inline'
               workingDirectory: $(workingDirectory)
-              addSpnToEnvironment: true
-              inlineScript: |
-                # Export service principal credentials for Terraform
-                export ARM_CLIENT_ID=$servicePrincipalId
-                export ARM_CLIENT_SECRET=$servicePrincipalKey
-                export ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
-                export ARM_TENANT_ID=$(ARM_TENANT_ID)
-                export ARM_USE_CLI=false
-                export ARM_USE_MSI=false
-
+              script: |
                 terraform init \
                   -backend-config="resource_group_name=$(TF_STATE_RESOURCE_GROUP)" \
                   -backend-config="storage_account_name=$(TF_STATE_STORAGE_ACCOUNT)" \
                   -backend-config="container_name=$(TF_STATE_CONTAINER)" \
                   -backend-config="key=sfdc-read-mcp-${{ parameters.environment }}.tfstate"
+            env:
+              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
 
-          - task: AzureCLI@2
+          - task: Bash@3
             displayName: 'Terraform ${{ parameters.action }}'
             inputs:
-              azureSubscription: $(serviceConnection)
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
+              targetType: 'inline'
               workingDirectory: $(workingDirectory)
-              addSpnToEnvironment: true
-              inlineScript: |
-                # Export service principal credentials for Terraform
-                export ARM_CLIENT_ID=$servicePrincipalId
-                export ARM_CLIENT_SECRET=$servicePrincipalKey
-                export ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
-                export ARM_TENANT_ID=$(ARM_TENANT_ID)
-                export ARM_USE_CLI=false
-                export ARM_USE_MSI=false
-
-                # Set Terraform variables from variable group
-                export TF_VAR_sfdc_client_id="$(SFDC_CLIENT_ID)"
-                export TF_VAR_sfdc_client_secret="$(SFDC_CLIENT_SECRET)"
-                export TF_VAR_sfdc_read_mcp_app_id="$(SFDC_READ_MCP_APP_ID)"
-
+              script: |
                 # Run terraform command
                 if [ "${{ parameters.action }}" == "plan" ]; then
                   terraform plan \
@@ -124,6 +102,14 @@ stages:
                     -var-file=environments/${{ parameters.environment }}.tfvars \
                     -auto-approve
                 fi
+            env:
+              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
+              TF_VAR_sfdc_client_id: $(SFDC_CLIENT_ID)
+              TF_VAR_sfdc_client_secret: $(SFDC_CLIENT_SECRET)
+              TF_VAR_sfdc_read_mcp_app_id: $(SFDC_READ_MCP_APP_ID)
 
           - task: PublishPipelineArtifact@1
             displayName: 'Publish Terraform Plan'
