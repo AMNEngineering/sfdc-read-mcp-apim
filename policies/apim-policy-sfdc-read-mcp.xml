@@ -3,7 +3,7 @@
         <base />
 
         <!-- Simple pass-through for now - will add security features incrementally -->
-        <set-backend-service backend-id="pool-sfdc-read-${environment}" />
+        <set-backend-service backend-id="backend-sfdc-read-${environment}" />
     </inbound>
 
     <backend>
