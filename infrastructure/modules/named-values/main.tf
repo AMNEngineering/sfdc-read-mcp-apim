@@ -21,10 +21,10 @@ resource "azurerm_api_management_named_value" "this" {
   api_management_name = var.apim_name
   display_name        = each.value.display_name
 
-  # Exactly one of these must be set
-  value = each.value.key_vault_secret_id == null && each.value.secret_value == null ? each.value.value : null
+  # Set value: use secret_value if provided, otherwise use value (unless using Key Vault)
+  value = each.value.key_vault_secret_id == null ? (each.value.secret_value != null ? each.value.secret_value : each.value.value) : null
 
-  # Secret stored directly in APIM (not recommended for prod)
+  # Mark as secret if secret_value is provided or using Key Vault
   secret = each.value.secret_value != null ? true : (each.value.key_vault_secret_id != null ? true : false)
 
   # Key Vault reference (use dynamic block syntax)
