@@ -14,7 +14,7 @@
 |-------------|---------------|-----------------|----------------|
 | DEV | `amn-wus2-hub-apim-d02` | `e764d23e-759d-4cd4-8b5f-27e4c703f6a8` | `amn-wus2-hub-rg-d01` |
 | QA | `amn-wus2-hub-apim-q02` | `e764d23e-759d-4cd4-8b5f-27e4c703f6a8` | (TBD) |
-| INT | `amn-wus2-hub-apim-i02` | `06ab2c80-382c-478f-bcd5-5e1afe984092` | (TBD) |
+| INT | `amn-wus2-hub-apim-i02` | `06ab2c80-382c-478f-bcd5-5e1afe984092` | `amn-wus2-hub-rg-i01` |
 | TRAIN | `amn-wus2-hub-apim-t02` | `e764d23e-759d-4cd4-8b5f-27e4c703f6a8` | (TBD) |
 | PROD | `amn-wus2-hub-apim-p02` | `06ab2c80-382c-478f-bcd5-5e1afe984092` | `amn-wus2-hub-rg-p01` |
 

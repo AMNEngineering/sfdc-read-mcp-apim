@@ -106,16 +106,17 @@ stages:
 
   # -----------------------------------------------------------------------------------------------------------------
   # Int environment Plan stage
+  # NOTE: Int is in PROD subscription, uses Upper service connection
   # -----------------------------------------------------------------------------------------------------------------
   - template: templates/plan_template.yml@templates
     parameters:
       PoolName: $(PoolName)
-      serviceConnection: $(ServiceConnection_Lower)
+      serviceConnection: $(ServiceConnection_Upper)
       subscription_id: $(StateStorageAccountSubscriptionId)
       vertical: $(VerticalName)
       environment: int
       backendResourceGroup: $(StateStorageAccountResourceGroup)
-      backendStorageAccount: $(StateStorageAccount_Lower)
+      backendStorageAccount: $(StateStorageAccount_Upper)
       resourceFile: environments/int.tfvars
 
   # -----------------------------------------------------------------------------------------------------------------
@@ -125,13 +126,13 @@ stages:
     parameters:
       customCondition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))"
       PoolName: $(PoolName)
-      serviceConnection: $(ServiceConnection_Lower)
+      serviceConnection: $(ServiceConnection_Upper)
       subscription_id: $(StateStorageAccountSubscriptionId)
       vertical: $(VerticalName)
       environment: int
       previousEnvironment: dev
       backendResourceGroup: $(StateStorageAccountResourceGroup)
-      backendStorageAccount: $(StateStorageAccount_Lower)
+      backendStorageAccount: $(StateStorageAccount_Upper)
       resourceFile: environments/int.tfvars
 
   # -----------------------------------------------------------------------------------------------------------------
