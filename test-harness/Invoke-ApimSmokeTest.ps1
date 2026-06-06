@@ -409,7 +409,7 @@ function Test-JwtValidation {
     Write-TestLog "`n--- Test 7: JWT Validation (negative test) ---" -Level INFO
 
     try {
-        $response = Invoke-RestMethod `
+        $null = Invoke-RestMethod `
             -Uri $Endpoint `
             -Method Post `
             -Headers @{ Authorization = "Bearer invalid-token-12345" } `
