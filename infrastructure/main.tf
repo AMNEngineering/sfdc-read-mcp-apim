@@ -101,10 +101,16 @@ module "mcp_policy" {
   api_name       = module.mcp_api.api_name
 
   # Load policy XML and inject variables
-  policy_xml_content = templatefile("${path.root}/../policies/apim-policy-sfdc-read-mcp.xml", {
-    tenant_id   = var.tenant_id
-    environment = var.environment
-  })
+  # Dev uses mock responses, Int/Prod use real backend
+  policy_xml_content = templatefile(
+    var.environment == "dev"
+      ? "${path.root}/../policies/apim-policy-sfdc-read-mcp-dev-mock.xml"
+      : "${path.root}/../policies/apim-policy-sfdc-read-mcp.xml",
+    {
+      tenant_id   = var.tenant_id
+      environment = var.environment
+    }
+  )
 
   depends_on = [module.mcp_api, module.named_values]
 }
