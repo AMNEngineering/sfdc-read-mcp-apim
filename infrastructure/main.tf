@@ -81,8 +81,8 @@ module "mcp_api" {
   service_name   = "sfdc-read"
   environment    = var.environment
 
-  # API path: sfdc-read/{environment}
-  api_path = "sfdc-read/${var.environment}"
+  # API path: sfdcread/{environment} (matches AFD route /sfdcread/*)
+  api_path = "sfdcread/${var.environment}"
 
   # No APIM subscription required (Entra JWT is the auth)
   subscription_required = false

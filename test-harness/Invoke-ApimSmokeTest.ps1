@@ -33,9 +33,9 @@ $ErrorActionPreference = "Stop"
 
 # Environment-specific endpoints (via Azure Front Door)
 $ApimEndpoints = @{
-    dev  = "https://api.dev.amnhealthcare.io/sfdc-read/dev"
-    int  = "https://api.int.amnhealthcare.io/sfdc-read/int"
-    prod = "https://api.amnhealthcare.io/sfdc-read/prod"
+    dev  = "https://api.dev.amnhealthcare.io/sfdcread/dev"
+    int  = "https://api.int.amnhealthcare.io/sfdcread/int"
+    prod = "https://api.amnhealthcare.io/sfdcread/prod"
 }
 
 # App registrations for JWT audience
