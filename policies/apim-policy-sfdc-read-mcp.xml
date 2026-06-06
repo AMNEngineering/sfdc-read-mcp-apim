@@ -2,7 +2,29 @@
     <inbound>
         <base />
 
-        <!-- Simple pass-through for now - will add security features incrementally -->
+        <!-- Validate Entra ID JWT -->
+        <validate-azure-ad-token tenant-id="${tenant_id}">
+            <client-application-ids>
+                <application-id>{{sfdc-read-mcp-app-id}}</application-id>
+            </client-application-ids>
+            <audiences>
+                <audience>api://{{sfdc-read-mcp-app-id}}</audience>
+            </audiences>
+        </validate-azure-ad-token>
+
+        <!-- Extract user identity for audit trail -->
+        <set-variable name="userOid" value="@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(' ')[1].AsJwt()?.Claims.GetValueOrDefault("oid", ""))" />
+        <set-header name="x-apim-user-id" exists-action="override">
+            <value>@((string)context.Variables["userOid"])</value>
+        </set-header>
+
+        <!-- Correlation ID for tracing -->
+        <set-variable name="correlationId" value="@(context.Request.Headers.GetValueOrDefault("x-correlation-id", Guid.NewGuid().ToString()))" />
+        <set-header name="x-correlation-id" exists-action="override">
+            <value>@((string)context.Variables["correlationId"])</value>
+        </set-header>
+
+        <!-- Route to backend -->
         <set-backend-service backend-id="backend-sfdc-read-${environment}" />
     </inbound>
 
