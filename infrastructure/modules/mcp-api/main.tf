@@ -45,7 +45,7 @@ resource "azurerm_api_management_api_operation" "mcp_invoke" {
   resource_group_name = var.resource_group
   display_name        = "Invoke MCP"
   method              = "POST"
-  url_template        = "/mcp/*"
+  url_template        = "/"
   description         = "MCP JSON-RPC 2.0 endpoint (initialize, tools/list, tools/call)"
 
   response {
