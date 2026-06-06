@@ -19,11 +19,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Mock data store
+# Mock data store - matches Salesforce MCP server responses exactly
 $script:MockData = @{
     ServerInfo = @{
         name    = "sobject-reads"
-        version = "1.0.0-mock"
+        version = "1.0.0"
     }
 
     SObjects = @(
@@ -100,13 +100,16 @@ function New-JsonRpcError {
 function Handle-Initialize {
     param($Id)
 
+    # Match Salesforce MCP server response format exactly
     $result = @{
         protocolVersion = "2024-11-05"
         capabilities    = @{
-            tools     = @{}
-            resources = @{ subscribe = $true }
+            tools = @{}
         }
-        serverInfo      = $script:MockData.ServerInfo
+        serverInfo      = @{
+            name    = "sobject-reads"
+            version = "1.0.0"
+        }
     }
 
     return New-JsonRpcResponse -Id $Id -Result $result
