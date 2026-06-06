@@ -92,7 +92,7 @@ module "mcp_api" {
   depends_on = [module.backend_pool]
 }
 
-# MCP Policy Module
+# MCP Policy Module (API-level policy for main operations)
 module "mcp_policy" {
   source = "./modules/mcp-policy"
 
@@ -113,4 +113,20 @@ module "mcp_policy" {
   )
 
   depends_on = [module.mcp_api, module.named_values]
+}
+
+# Health Check Operation Policy (no JWT required)
+module "health_check_policy" {
+  source = "./modules/mcp-api-operation-policy"
+
+  apim_name      = var.apim_name
+  resource_group = var.apim_resource_group
+  api_name       = module.mcp_api.api_name
+  operation_id   = "health-check"
+
+  policy_xml_content = templatefile("${path.root}/../policies/apim-policy-health-check.xml", {
+    environment = var.environment
+  })
+
+  depends_on = [module.mcp_api]
 }

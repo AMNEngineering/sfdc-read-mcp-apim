@@ -37,6 +37,26 @@ resource "azurerm_api_management_api" "this" {
   # No import, defining inline
 }
 
+# Health check endpoint (no auth required)
+resource "azurerm_api_management_api_operation" "health_check" {
+  operation_id        = "health-check"
+  api_name            = azurerm_api_management_api.this.name
+  api_management_name = var.apim_name
+  resource_group_name = var.resource_group
+  display_name        = "Health Check"
+  method              = "GET"
+  url_template        = "/health"
+  description         = "Liveness probe for AFD and network routing verification"
+
+  response {
+    status_code = 200
+    description = "Healthy"
+    representation {
+      content_type = "application/json"
+    }
+  }
+}
+
 # Single wildcard operation for MCP JSON-RPC
 resource "azurerm_api_management_api_operation" "mcp_invoke" {
   operation_id        = "invoke-mcp"
