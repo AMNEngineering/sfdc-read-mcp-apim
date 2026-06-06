@@ -1,7 +1,6 @@
 <policies>
     <inbound>
-        <base />
-        <!-- Health check - no authentication required -->
+        <!-- Health check - no authentication required - DO NOT call base to bypass JWT validation -->
         <return-response>
             <set-status code="200" reason="OK" />
             <set-header name="Content-Type" exists-action="override">
