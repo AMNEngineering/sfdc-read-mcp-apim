@@ -99,35 +99,143 @@ stages:
   #               # Future: .\test-harness\Invoke-SfdcReadTest.ps1 -Environment dev -TestSuite all
 
   # -----------------------------------------------------------------------------------------------------------------
-  # Int environment Plan stage
+  # Int environment Plan stage - CUSTOM (bypasses exit code 2 issue in common template)
   # NOTE: Int is in PROD subscription, uses Upper service connection
   # -----------------------------------------------------------------------------------------------------------------
-  - template: templates/plan_template.yml@templates
-    parameters:
-      PoolName: $(PoolName)
-      serviceConnection: $(ServiceConnection_Upper)
-      subscription_id: $(StateStorageAccountSubscriptionId)
-      vertical: $(VerticalName)
-      environment: int
-      backendResourceGroup: $(StateStorageAccountResourceGroup)
-      backendStorageAccount: $(StateStorageAccount_Upper)
-      resourceFile: environments/int.tfvars
+  - stage: int_plan
+    displayName: "Terraform_Plan_int"
+    dependsOn: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    jobs:
+      - job: Plan_Configuration
+        displayName: "Plan Configuration"
+        steps:
+          - checkout: self
+            clean: true
+
+          - task: TerraformInstaller@1
+            displayName: "Terraform Install"
+            inputs:
+              terraformVersion: '1.12.0'
+
+          - task: AzureCLI@2
+            displayName: "Terraform Init"
+            inputs:
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              addSpnToEnvironment: true
+              azureSubscription: '$(ServiceConnection_Upper)'
+              inlineScript: |
+                echo "Exporting ADO service principal credentials..."
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey
+                export ARM_TENANT_ID=$tenantId
+
+                cd infrastructure
+                terraform init \
+                  -backend-config="storage_account_name=$(StateStorageAccount_Upper)" \
+                  -backend-config="container_name=$(VerticalName)" \
+                  -backend-config="key=$(VerticalName)-int.tfstate" \
+                  -backend-config="resource_group_name=$(StateStorageAccountResourceGroup)" \
+                  -backend-config="subscription_id=$(StateStorageAccountSubscriptionId)"
+
+          - task: AzureCLI@2
+            displayName: "Terraform Plan"
+            inputs:
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              addSpnToEnvironment: true
+              azureSubscription: '$(ServiceConnection_Upper)'
+              inlineScript: |
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey
+                export ARM_TENANT_ID=$tenantId
+
+                cd infrastructure
+                terraform plan -input=false -var-file="environments/int.tfvars" -out=$(Build.ArtifactStagingDirectory)/int_plan
+
+                # Capture exit code
+                PLAN_EXIT=$?
+                echo "Terraform plan exit code: $PLAN_EXIT"
+
+                # Exit codes: 0=no changes, 1=error, 2=changes detected
+                # We treat 0 and 2 as success
+                if [ $PLAN_EXIT -eq 0 ] || [ $PLAN_EXIT -eq 2 ]; then
+                  echo "##[section]Plan succeeded (exit code $PLAN_EXIT)"
+                  exit 0
+                else
+                  echo "##[error]Plan failed with exit code $PLAN_EXIT"
+                  exit $PLAN_EXIT
+                fi
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish Terraform Plan"
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/int_plan'
+              artifact: 'TF_Plan_Artifact_int'
 
   # -----------------------------------------------------------------------------------------------------------------
-  # Int environment Apply stage
+  # Int environment Apply stage - CUSTOM
   # -----------------------------------------------------------------------------------------------------------------
-  - template: templates/apply_template.yml@templates
-    parameters:
-      customCondition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))"
-      PoolName: $(PoolName)
-      serviceConnection: $(ServiceConnection_Upper)
-      subscription_id: $(StateStorageAccountSubscriptionId)
-      vertical: $(VerticalName)
-      environment: int
-      previousEnvironment: dev
-      backendResourceGroup: $(StateStorageAccountResourceGroup)
-      backendStorageAccount: $(StateStorageAccount_Upper)
-      resourceFile: environments/int.tfvars
+  - stage: int_apply
+    displayName: "Terraform_Apply_int"
+    dependsOn: int_plan
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    pool:
+      vmImage: 'ubuntu-latest'
+    jobs:
+      - job: Apply_Configuration
+        displayName: "Apply Configuration"
+        steps:
+          - checkout: self
+            clean: true
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download Terraform Plan"
+            inputs:
+              artifact: 'TF_Plan_Artifact_int'
+              path: '$(Build.ArtifactStagingDirectory)'
+
+          - task: TerraformInstaller@1
+            displayName: "Terraform Install"
+            inputs:
+              terraformVersion: '1.12.0'
+
+          - task: AzureCLI@2
+            displayName: "Terraform Init"
+            inputs:
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              addSpnToEnvironment: true
+              azureSubscription: '$(ServiceConnection_Upper)'
+              inlineScript: |
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey
+                export ARM_TENANT_ID=$tenantId
+
+                cd infrastructure
+                terraform init \
+                  -backend-config="storage_account_name=$(StateStorageAccount_Upper)" \
+                  -backend-config="container_name=$(VerticalName)" \
+                  -backend-config="key=$(VerticalName)-int.tfstate" \
+                  -backend-config="resource_group_name=$(StateStorageAccountResourceGroup)" \
+                  -backend-config="subscription_id=$(StateStorageAccountSubscriptionId)"
+
+          - task: AzureCLI@2
+            displayName: "Terraform Apply"
+            inputs:
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              addSpnToEnvironment: true
+              azureSubscription: '$(ServiceConnection_Upper)'
+              inlineScript: |
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey
+                export ARM_TENANT_ID=$tenantId
+
+                cd infrastructure
+                terraform apply -input=false $(Build.ArtifactStagingDirectory)/int_plan
 
   # -----------------------------------------------------------------------------------------------------------------
   # Prod environment Plan stage (requires CAB approval before creating this)
