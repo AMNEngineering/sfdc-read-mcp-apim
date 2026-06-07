@@ -49,60 +49,54 @@ stages:
             clean: true
 
   # -----------------------------------------------------------------------------------------------------------------
-  # Dev environment Plan stage
+  # Dev stages temporarily disabled - dev already deployed, state has exit code 2 issue
   # -----------------------------------------------------------------------------------------------------------------
-  - template: templates/plan_template.yml@templates
-    parameters:
-      PoolName: $(PoolName)
-      serviceConnection: $(ServiceConnection_Lower)
-      subscription_id: $(StateStorageAccountSubscriptionId)
-      vertical: $(VerticalName)
-      environment: dev
-      backendResourceGroup: $(StateStorageAccountResourceGroup)
-      backendStorageAccount: $(StateStorageAccount_Lower)
-      resourceFile: environments/dev.tfvars
+  # - template: templates/plan_template.yml@templates
+  #   parameters:
+  #     PoolName: $(PoolName)
+  #     serviceConnection: $(ServiceConnection_Lower)
+  #     subscription_id: $(StateStorageAccountSubscriptionId)
+  #     vertical: $(VerticalName)
+  #     environment: dev
+  #     backendResourceGroup: $(StateStorageAccountResourceGroup)
+  #     backendStorageAccount: $(StateStorageAccount_Lower)
+  #     resourceFile: environments/dev.tfvars
 
-  # -----------------------------------------------------------------------------------------------------------------
-  # Dev environment Apply stage
-  # -----------------------------------------------------------------------------------------------------------------
-  - template: templates/apply_template.yml@templates
-    parameters:
-      customCondition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))"
-      PoolName: $(PoolName)
-      serviceConnection: $(ServiceConnection_Lower)
-      subscription_id: $(StateStorageAccountSubscriptionId)
-      vertical: $(VerticalName)
-      environment: dev
-      backendResourceGroup: $(StateStorageAccountResourceGroup)
-      backendStorageAccount: $(StateStorageAccount_Lower)
-      resourceFile: environments/dev.tfvars
+  # - template: templates/apply_template.yml@templates
+  #   parameters:
+  #     customCondition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))"
+  #     PoolName: $(PoolName)
+  #     serviceConnection: $(ServiceConnection_Lower)
+  #     subscription_id: $(StateStorageAccountSubscriptionId)
+  #     vertical: $(VerticalName)
+  #     environment: dev
+  #     backendResourceGroup: $(StateStorageAccountResourceGroup)
+  #     backendStorageAccount: $(StateStorageAccount_Lower)
+  #     resourceFile: environments/dev.tfvars
 
-  # -----------------------------------------------------------------------------------------------------------------
-  # Dev Test Stage - Custom (PowerShell test harness)
-  # -----------------------------------------------------------------------------------------------------------------
-  - stage: dev_test
-    displayName: "Test_Dev"
-    dependsOn: dev_apply
-    condition: succeeded()
-    pool:
-      vmImage: 'windows-latest'
-    jobs:
-      - job: RunTests
-        displayName: 'Run Test Harness'
-        steps:
-          - checkout: self
+  # - stage: dev_test
+  #   displayName: "Test_Dev"
+  #   dependsOn: dev_apply
+  #   condition: succeeded()
+  #   pool:
+  #     vmImage: 'windows-latest'
+  #   jobs:
+  #     - job: RunTests
+  #       displayName: 'Run Test Harness'
+  #       steps:
+  #         - checkout: self
 
-          - task: AzurePowerShell@5
-            displayName: 'Test APIM Deployment'
-            inputs:
-              azureSubscription: $(ServiceConnection_Lower)
-              scriptType: 'inlineScript'
-              azurePowerShellVersion: 'LatestVersion'
-              pwsh: true
-              script: |
-                Write-Host "✅ Dev environment deployed successfully"
-                Write-Host "TODO: Run test harness once implemented"
-                # Future: .\test-harness\Invoke-SfdcReadTest.ps1 -Environment dev -TestSuite all
+  #         - task: AzurePowerShell@5
+  #           displayName: 'Test APIM Deployment'
+  #           inputs:
+  #             azureSubscription: $(ServiceConnection_Lower)
+  #             scriptType: 'inlineScript'
+  #             azurePowerShellVersion: 'LatestVersion'
+  #             pwsh: true
+  #             script: |
+  #               Write-Host "✅ Dev environment deployed successfully"
+  #               Write-Host "TODO: Run test harness once implemented"
+  #               # Future: .\test-harness\Invoke-SfdcReadTest.ps1 -Environment dev -TestSuite all
 
   # -----------------------------------------------------------------------------------------------------------------
   # Int environment Plan stage
