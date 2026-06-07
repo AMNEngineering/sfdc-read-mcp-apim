@@ -1,11 +1,11 @@
 # Int Environment Configuration
-# Backend: Salesforce Sandbox
+# Backend: Salesforce Sandbox via Key Vault credentials
 
 environment         = "int"
 apim_name          = "amn-wus2-hub-apim-i02"
 apim_resource_group = "amn-wus2-hub-rg-i01"
 
-# Salesforce sandbox
+# Salesforce sandbox MCP endpoint
 backend_url = "https://api.salesforce.com"
 
 # Salesforce MCP path for sandbox
@@ -17,10 +17,10 @@ tenant_id = "6232c2ec-fa42-4f27-92cd-787913fba489"
 # Entra app registration: SFDC Read MCP Reader Int
 sfdc_read_mcp_app_id = "976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03"
 
-# Salesforce credentials (from Key Vault or ADO variable group)
-# These should be injected at runtime, not committed
-sfdc_client_id     = "REPLACE_WITH_SFDC_SANDBOX_CLIENT_ID"
-sfdc_client_secret = "REPLACE_WITH_SFDC_SANDBOX_CLIENT_SECRET"
+# Salesforce credentials from Key Vault (provisioned by New-SfdcReadKeyVault.ps1)
+key_vault_name     = "amn-wus2-sfdcread-kv-i01"
+sfdc_client_id     = ""
+sfdc_client_secret = ""
 sfdc_token_url     = "https://test.salesforce.com/services/oauth2/token"
 
 # Tags

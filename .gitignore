@@ -21,6 +21,7 @@ terraform.rc
 **/secrets/
 **/.env
 **/.env.local
+infrastructure/scripts/New-SfdcReadKeyVault.ps1
 
 # Test results
 test-results-*.json

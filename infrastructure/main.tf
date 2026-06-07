@@ -19,36 +19,48 @@ module "named_values" {
   apim_name      = var.apim_name
   resource_group = var.apim_resource_group
 
-  named_values = {
-    # Entra app ID (plain text, used in policy for JWT validation)
-    "sfdc-read-mcp-app-id" = {
-      display_name = "SFDC-Read-MCP-App-ID"
-      value        = var.sfdc_read_mcp_app_id
-    }
+  named_values = merge(
+    {
+      # Entra app ID (plain text, used in policy for JWT validation)
+      "sfdc-read-mcp-app-id" = {
+        display_name = "SFDC-Read-MCP-App-ID"
+        value        = var.sfdc_read_mcp_app_id
+      }
 
-    # Salesforce OAuth credentials (secrets)
-    "nv-sfdc-read-mcp-client-id" = {
-      display_name = "SFDC-MCP-Client-ID"
-      secret_value = var.sfdc_client_id
-    }
+      # Salesforce OAuth token URL
+      "nv-sfdc-read-mcp-token-url" = {
+        display_name = "SFDC-MCP-Token-URL"
+        value        = var.sfdc_token_url
+      }
 
-    "nv-sfdc-read-mcp-client-secret" = {
-      display_name = "SFDC-MCP-Client-Secret"
-      secret_value = var.sfdc_client_secret
-    }
+      # Salesforce MCP endpoint path
+      "nv-sfdc-read-mcp-path" = {
+        display_name = "SFDC-MCP-Path"
+        value        = var.sfdc_mcp_path
+      }
+    },
 
-    # Salesforce OAuth token URL
-    "nv-sfdc-read-mcp-token-url" = {
-      display_name = "SFDC-MCP-Token-URL"
-      value        = var.sfdc_token_url
+    # Salesforce credentials: Key Vault references for int/prod, inline for dev
+    var.key_vault_name != "" ? {
+      "nv-sfdc-read-mcp-client-id" = {
+        display_name        = "SFDC-MCP-Client-ID"
+        key_vault_secret_id = "https://${var.key_vault_name}.vault.azure.net/secrets/sfdc-client-id"
+      }
+      "nv-sfdc-read-mcp-client-secret" = {
+        display_name        = "SFDC-MCP-Client-Secret"
+        key_vault_secret_id = "https://${var.key_vault_name}.vault.azure.net/secrets/sfdc-client-secret"
+      }
+    } : {
+      "nv-sfdc-read-mcp-client-id" = {
+        display_name = "SFDC-MCP-Client-ID"
+        secret_value = var.sfdc_client_id
+      }
+      "nv-sfdc-read-mcp-client-secret" = {
+        display_name = "SFDC-MCP-Client-Secret"
+        secret_value = var.sfdc_client_secret
+      }
     }
-
-    # Salesforce MCP endpoint path
-    "nv-sfdc-read-mcp-path" = {
-      display_name = "SFDC-MCP-Path"
-      value        = var.sfdc_mcp_path
-    }
-  }
+  )
 
   tags = var.tags
 }

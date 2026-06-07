@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(az account get-access-token *)",
+      "Bash(az account show *)",
+      "Bash(az apim api list *)",
+      "Bash(az apim api show *)",
+      "Bash(az apim list *)",
+      "Bash(az keyvault secret list *)",
+      "Bash(az keyvault secret show *)",
+      "Bash(az resource list *)",
+      "Bash(az resource show *)",
+      "Bash(az network front-door show *)",
+      "Bash(az network front-door routing-rule list *)",
+      "Bash(az role assignment list *)",
+      "Bash(terraform init *)",
+      "Bash(terraform plan *)",
+      "Bash(terraform validate)",
+      "Bash(terraform show *)"
+    ]
+  }
+}

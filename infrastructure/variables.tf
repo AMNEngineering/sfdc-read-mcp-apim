@@ -32,17 +32,25 @@ variable "sfdc_read_mcp_app_id" {
   type        = string
 }
 
-# Salesforce OAuth credentials (from Key Vault or variable group)
+# Salesforce OAuth credentials — either inline (dev) or from Key Vault (int/prod)
 variable "sfdc_client_id" {
-  description = "Salesforce External Client App - Client ID"
+  description = "Salesforce External Client App - Client ID (empty when using Key Vault)"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "sfdc_client_secret" {
-  description = "Salesforce External Client App - Client Secret"
+  description = "Salesforce External Client App - Client Secret (empty when using Key Vault)"
   type        = string
   sensitive   = true
+  default     = ""
+}
+
+variable "key_vault_name" {
+  description = "Key Vault name for SFDC credentials. When set, named values reference KV secrets instead of inline values."
+  type        = string
+  default     = ""
 }
 
 variable "sfdc_token_url" {
