@@ -5,10 +5,10 @@
         <!-- Validate Entra ID JWT -->
         <validate-azure-ad-token tenant-id="${tenant_id}">
             <client-application-ids>
-                <application-id>{{sfdc-read-mcp-app-id}}</application-id>
+                <application-id>{{SFDC-Read-MCP-App-ID}}</application-id>
             </client-application-ids>
             <audiences>
-                <audience>api://{{sfdc-read-mcp-app-id}}</audience>
+                <audience>api://{{SFDC-Read-MCP-App-ID}}</audience>
             </audiences>
         </validate-azure-ad-token>
 
@@ -25,10 +25,10 @@
         </set-header>
 
         <!-- Resolve named values into context variables for Salesforce OAuth -->
-        <set-variable name="sfClientId" value="{{nv-sfdc-read-mcp-client-id}}" />
-        <set-variable name="sfClientSecret" value="{{nv-sfdc-read-mcp-client-secret}}" />
-        <set-variable name="sfTokenUrl" value="{{nv-sfdc-read-mcp-token-url}}" />
-        <set-variable name="sfMcpPath" value="{{nv-sfdc-read-mcp-path}}" />
+        <set-variable name="sfClientId" value="{{SFDC-MCP-Client-ID}}" />
+        <set-variable name="sfClientSecret" value="{{SFDC-MCP-Client-Secret}}" />
+        <set-variable name="sfTokenUrl" value="{{SFDC-MCP-Token-URL}}" />
+        <set-variable name="sfMcpPath" value="{{SFDC-MCP-Path}}" />
 
         <!-- Salesforce OAuth token exchange (client_credentials) -->
         <send-request mode="new" response-variable-name="sfTokenResponse" timeout="10" ignore-error="false">

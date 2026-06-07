@@ -5,10 +5,10 @@
         <!-- Validate Entra ID JWT -->
         <validate-azure-ad-token tenant-id="${tenant_id}">
             <client-application-ids>
-                <application-id>{{sfdc-read-mcp-app-id}}</application-id>
+                <application-id>{{SFDC-Read-MCP-App-ID}}</application-id>
             </client-application-ids>
             <audiences>
-                <audience>api://{{sfdc-read-mcp-app-id}}</audience>
+                <audience>api://{{SFDC-Read-MCP-App-ID}}</audience>
             </audiences>
         </validate-azure-ad-token>
 
