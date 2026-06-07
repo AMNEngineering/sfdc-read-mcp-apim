@@ -40,9 +40,8 @@
             <set-body>@{
                 var clientId = (string)context.Variables["sfClientId"];
                 var clientSecret = (string)context.Variables["sfClientSecret"];
-                return "grant_type=client_credentials"
-                    + "&client_id=" + Uri.EscapeDataString(clientId)
-                    + "&client_secret=" + Uri.EscapeDataString(clientSecret);
+                return String.Format("grant_type=client_credentials&amp;client_id={0}&amp;client_secret={1}",
+                    Uri.EscapeDataString(clientId), Uri.EscapeDataString(clientSecret));
             }</set-body>
         </send-request>
 
