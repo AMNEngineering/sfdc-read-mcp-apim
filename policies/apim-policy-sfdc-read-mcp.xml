@@ -24,26 +24,34 @@
             <value>@((string)context.Variables["correlationId"])</value>
         </set-header>
 
+        <!-- Resolve named values into context variables for Salesforce OAuth -->
+        <set-variable name="sfClientId" value="{{nv-sfdc-read-mcp-client-id}}" />
+        <set-variable name="sfClientSecret" value="{{nv-sfdc-read-mcp-client-secret}}" />
+        <set-variable name="sfTokenUrl" value="{{nv-sfdc-read-mcp-token-url}}" />
+        <set-variable name="sfMcpPath" value="{{nv-sfdc-read-mcp-path}}" />
+
         <!-- Salesforce OAuth token exchange (client_credentials) -->
         <send-request mode="new" response-variable-name="sfTokenResponse" timeout="10" ignore-error="false">
-            <set-url>{{nv-sfdc-read-mcp-token-url}}</set-url>
+            <set-url>@((string)context.Variables["sfTokenUrl"])</set-url>
             <set-method>POST</set-method>
             <set-header name="Content-Type" exists-action="override">
                 <value>application/x-www-form-urlencoded</value>
             </set-header>
             <set-body>@{
+                var clientId = (string)context.Variables["sfClientId"];
+                var clientSecret = (string)context.Variables["sfClientSecret"];
                 return "grant_type=client_credentials"
-                    + "&amp;client_id={{nv-sfdc-read-mcp-client-id}}"
-                    + "&amp;client_secret={{nv-sfdc-read-mcp-client-secret}}";
+                    + "&client_id=" + Uri.EscapeDataString(clientId)
+                    + "&client_secret=" + Uri.EscapeDataString(clientSecret);
             }</set-body>
         </send-request>
 
         <!-- Extract Salesforce access token and instance URL -->
-        <set-variable name="sfAccessToken" value="@(((IResponse)context.Variables["sfTokenResponse"]).Body.As&lt;JObject&gt;()["access_token"].ToString())" />
-        <set-variable name="sfInstanceUrl" value="@(((IResponse)context.Variables["sfTokenResponse"]).Body.As&lt;JObject&gt;()["instance_url"].ToString())" />
+        <set-variable name="sfAccessToken" value="@(((IResponse)context.Variables["sfTokenResponse"]).Body.As<JObject>()["access_token"].ToString())" />
+        <set-variable name="sfInstanceUrl" value="@(((IResponse)context.Variables["sfTokenResponse"]).Body.As<JObject>()["instance_url"].ToString())" />
 
         <!-- Route to the Salesforce instance returned by OAuth -->
-        <set-backend-service base-url="@((string)context.Variables["sfInstanceUrl"] + "{{nv-sfdc-read-mcp-path}}")" />
+        <set-backend-service base-url="@((string)context.Variables["sfInstanceUrl"] + (string)context.Variables["sfMcpPath"])" />
 
         <!-- Replace inbound Entra JWT with Salesforce bearer token -->
         <set-header name="Authorization" exists-action="override">
