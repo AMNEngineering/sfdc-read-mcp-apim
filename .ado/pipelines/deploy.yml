@@ -114,7 +114,7 @@ stages:
           - checkout: self
             clean: true
 
-          - task: TerraformInstaller@1
+          - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@1
             displayName: "Terraform Install"
             inputs:
               terraformVersion: '1.12.0'
@@ -197,7 +197,7 @@ stages:
               artifact: 'TF_Plan_Artifact_int'
               path: '$(Build.ArtifactStagingDirectory)'
 
-          - task: TerraformInstaller@1
+          - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@1
             displayName: "Terraform Install"
             inputs:
               terraformVersion: '1.12.0'
