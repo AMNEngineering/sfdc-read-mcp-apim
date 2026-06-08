@@ -6,6 +6,7 @@
         <validate-azure-ad-token tenant-id="${tenant_id}">
             <client-application-ids>
                 <application-id>{{SFDC-Read-MCP-App-ID}}</application-id>
+                <application-id>04b07795-8ddb-461a-bbee-02f9e1bf7b46</application-id>
             </client-application-ids>
             <audiences>
                 <audience>api://{{SFDC-Read-MCP-App-ID}}</audience>

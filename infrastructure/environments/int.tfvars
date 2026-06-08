@@ -21,7 +21,7 @@ sfdc_read_mcp_app_id = "976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03"
 key_vault_name     = "amn-wus2-sfdcread-kv-i01"
 sfdc_client_id     = ""
 sfdc_client_secret = ""
-sfdc_token_url     = "https://test.salesforce.com/services/oauth2/token"
+sfdc_token_url     = "https://amnhealthcare--qa.sandbox.my.salesforce.com/services/oauth2/token"
 
 # Tags
 tags = {

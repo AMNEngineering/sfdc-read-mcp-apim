@@ -22,6 +22,7 @@ terraform.rc
 **/.env
 **/.env.local
 infrastructure/scripts/New-SfdcReadKeyVault.ps1
+docs/SALESFORCE-REPRO-*.md
 
 # Test results
 test-results-*.json

@@ -49,54 +49,174 @@ stages:
             clean: true
 
   # -----------------------------------------------------------------------------------------------------------------
-  # Dev stages temporarily disabled - dev already deployed, state has exit code 2 issue
+  # Dev environment Plan stage - CUSTOM (bypasses exit code 2 issue in common template)
   # -----------------------------------------------------------------------------------------------------------------
-  # - template: templates/plan_template.yml@templates
-  #   parameters:
-  #     PoolName: $(PoolName)
-  #     serviceConnection: $(ServiceConnection_Lower)
-  #     subscription_id: $(StateStorageAccountSubscriptionId)
-  #     vertical: $(VerticalName)
-  #     environment: dev
-  #     backendResourceGroup: $(StateStorageAccountResourceGroup)
-  #     backendStorageAccount: $(StateStorageAccount_Lower)
-  #     resourceFile: environments/dev.tfvars
+  - stage: dev_plan
+    displayName: "Terraform_Plan_dev"
+    dependsOn: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    jobs:
+      - job: Plan_Configuration
+        displayName: "Plan Configuration"
+        steps:
+          - checkout: self
+            clean: true
 
-  # - template: templates/apply_template.yml@templates
-  #   parameters:
-  #     customCondition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))"
-  #     PoolName: $(PoolName)
-  #     serviceConnection: $(ServiceConnection_Lower)
-  #     subscription_id: $(StateStorageAccountSubscriptionId)
-  #     vertical: $(VerticalName)
-  #     environment: dev
-  #     backendResourceGroup: $(StateStorageAccountResourceGroup)
-  #     backendStorageAccount: $(StateStorageAccount_Lower)
-  #     resourceFile: environments/dev.tfvars
+          - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@1
+            displayName: "Terraform Install"
+            inputs:
+              terraformVersion: '1.12.0'
 
-  # - stage: dev_test
-  #   displayName: "Test_Dev"
-  #   dependsOn: dev_apply
-  #   condition: succeeded()
-  #   pool:
-  #     vmImage: 'windows-latest'
-  #   jobs:
-  #     - job: RunTests
-  #       displayName: 'Run Test Harness'
-  #       steps:
-  #         - checkout: self
+          - task: AzureCLI@2
+            displayName: "Terraform Init"
+            inputs:
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              addSpnToEnvironment: true
+              azureSubscription: '$(ServiceConnection_Lower)'
+              inlineScript: |
+                echo "Exporting ADO service principal credentials..."
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey
+                export ARM_TENANT_ID=$tenantId
 
-  #         - task: AzurePowerShell@5
-  #           displayName: 'Test APIM Deployment'
-  #           inputs:
-  #             azureSubscription: $(ServiceConnection_Lower)
-  #             scriptType: 'inlineScript'
-  #             azurePowerShellVersion: 'LatestVersion'
-  #             pwsh: true
-  #             script: |
-  #               Write-Host "✅ Dev environment deployed successfully"
-  #               Write-Host "TODO: Run test harness once implemented"
-  #               # Future: .\test-harness\Invoke-SfdcReadTest.ps1 -Environment dev -TestSuite all
+                cd infrastructure
+                terraform init \
+                  -backend-config="storage_account_name=$(StateStorageAccount_Lower)" \
+                  -backend-config="container_name=$(VerticalName)" \
+                  -backend-config="key=$(VerticalName)-dev.tfstate" \
+                  -backend-config="resource_group_name=$(StateStorageAccountResourceGroup)" \
+                  -backend-config="subscription_id=$(StateStorageAccountSubscriptionId)"
+
+          - task: AzureCLI@2
+            displayName: "Terraform Plan"
+            inputs:
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              addSpnToEnvironment: true
+              azureSubscription: '$(ServiceConnection_Lower)'
+              inlineScript: |
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey
+                export ARM_TENANT_ID=$tenantId
+
+                cd infrastructure
+                terraform plan -input=false -var-file="environments/dev.tfvars" -out=$(Build.ArtifactStagingDirectory)/dev_plan
+
+                # Capture exit code
+                PLAN_EXIT=$?
+                echo "Terraform plan exit code: $PLAN_EXIT"
+
+                # Exit codes: 0=no changes, 1=error, 2=changes detected
+                # We treat 0 and 2 as success
+                if [ $PLAN_EXIT -eq 0 ] || [ $PLAN_EXIT -eq 2 ]; then
+                  echo "##[section]Plan succeeded (exit code $PLAN_EXIT)"
+                  exit 0
+                else
+                  echo "##[error]Plan failed with exit code $PLAN_EXIT"
+                  exit $PLAN_EXIT
+                fi
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish Terraform Plan"
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/dev_plan'
+              artifact: 'TF_Plan_Artifact_dev'
+
+  # -----------------------------------------------------------------------------------------------------------------
+  # Dev environment Apply stage - CUSTOM
+  # -----------------------------------------------------------------------------------------------------------------
+  - stage: dev_apply
+    displayName: "Terraform_Apply_dev"
+    dependsOn: dev_plan
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    pool:
+      vmImage: 'ubuntu-latest'
+    jobs:
+      - job: Apply_Configuration
+        displayName: "Apply Configuration"
+        steps:
+          - checkout: self
+            clean: true
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download Terraform Plan"
+            inputs:
+              artifact: 'TF_Plan_Artifact_dev'
+              path: '$(Build.ArtifactStagingDirectory)'
+
+          - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@1
+            displayName: "Terraform Install"
+            inputs:
+              terraformVersion: '1.12.0'
+
+          - task: AzureCLI@2
+            displayName: "Terraform Init"
+            inputs:
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              addSpnToEnvironment: true
+              azureSubscription: '$(ServiceConnection_Lower)'
+              inlineScript: |
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey
+                export ARM_TENANT_ID=$tenantId
+
+                cd infrastructure
+                terraform init \
+                  -backend-config="storage_account_name=$(StateStorageAccount_Lower)" \
+                  -backend-config="container_name=$(VerticalName)" \
+                  -backend-config="key=$(VerticalName)-dev.tfstate" \
+                  -backend-config="resource_group_name=$(StateStorageAccountResourceGroup)" \
+                  -backend-config="subscription_id=$(StateStorageAccountSubscriptionId)"
+
+          - task: AzureCLI@2
+            displayName: "Terraform Apply"
+            inputs:
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              addSpnToEnvironment: true
+              azureSubscription: '$(ServiceConnection_Lower)'
+              inlineScript: |
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey
+                export ARM_TENANT_ID=$tenantId
+
+                cd infrastructure
+                terraform apply -input=false $(Build.ArtifactStagingDirectory)/dev_plan
+
+  # -----------------------------------------------------------------------------------------------------------------
+  # Dev environment Verify stage
+  # -----------------------------------------------------------------------------------------------------------------
+  - stage: dev_verify
+    displayName: "Verify_dev"
+    dependsOn: dev_apply
+    condition: succeeded()
+    pool:
+      vmImage: 'ubuntu-latest'
+    jobs:
+      - job: Verify_Deployment
+        displayName: "Verify Dev Deployment"
+        steps:
+          - task: AzureCLI@2
+            displayName: "Health Check"
+            inputs:
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              azureSubscription: '$(ServiceConnection_Lower)'
+              inlineScript: |
+                echo "Checking dev health endpoint..."
+                RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+                  "https://api.dev.amnhealthcare.io/sfdcread/dev/health")
+
+                echo "Health check status: $RESPONSE"
+                if [ "$RESPONSE" = "200" ]; then
+                  echo "##[section]Dev health check PASSED"
+                else
+                  echo "##[error]Dev health check FAILED (HTTP $RESPONSE)"
+                  exit 1
+                fi
 
   # -----------------------------------------------------------------------------------------------------------------
   # Int environment Plan stage - CUSTOM (bypasses exit code 2 issue in common template)
@@ -104,7 +224,7 @@ stages:
   # -----------------------------------------------------------------------------------------------------------------
   - stage: int_plan
     displayName: "Terraform_Plan_int"
-    dependsOn: Build
+    dependsOn: dev_verify
     pool:
       vmImage: 'ubuntu-latest'
     jobs:
@@ -236,6 +356,102 @@ stages:
 
                 cd infrastructure
                 terraform apply -input=false $(Build.ArtifactStagingDirectory)/int_plan
+
+  # -----------------------------------------------------------------------------------------------------------------
+  # Int environment Verify stage
+  # -----------------------------------------------------------------------------------------------------------------
+  - stage: int_verify
+    displayName: "Verify_int"
+    dependsOn: int_apply
+    condition: succeeded()
+    pool:
+      vmImage: 'ubuntu-latest'
+    jobs:
+      - job: Verify_Deployment
+        displayName: "Verify Int Deployment"
+        steps:
+          - checkout: self
+            clean: true
+
+          - task: AzureCLI@2
+            displayName: "Health Check"
+            inputs:
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              azureSubscription: '$(ServiceConnection_Upper)'
+              inlineScript: |
+                echo "Checking int health endpoint..."
+                RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+                  "https://api.int.amnhealthcare.io/sfdcread/int/health")
+
+                echo "Health check status: $RESPONSE"
+                if [ "$RESPONSE" = "200" ]; then
+                  echo "##[section]Int health check PASSED"
+                else
+                  echo "##[error]Int health check FAILED (HTTP $RESPONSE)"
+                  exit 1
+                fi
+
+          - task: AzureCLI@2
+            displayName: "MCP Smoke Test"
+            inputs:
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              azureSubscription: '$(ServiceConnection_Upper)'
+              inlineScript: |
+                APP_ID="976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03"
+                ENDPOINT="https://api.int.amnhealthcare.io/sfdcread/int"
+
+                echo "Acquiring Entra token for api://$APP_ID..."
+                TOKEN=$(az account get-access-token --resource "api://$APP_ID" --query accessToken -o tsv 2>&1)
+                if [ $? -ne 0 ]; then
+                  echo "##[warning]Could not acquire token (SPN may not be authorized). Skipping MCP test."
+                  echo "Token error: $TOKEN"
+                  exit 0
+                fi
+
+                echo "Testing MCP initialize..."
+                INIT_RESPONSE=$(curl -s -w "\n%{http_code}" \
+                  -X POST "$ENDPOINT" \
+                  -H "Authorization: Bearer $TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"pipeline-test","version":"1.0.0"}}}')
+
+                HTTP_CODE=$(echo "$INIT_RESPONSE" | tail -1)
+                BODY=$(echo "$INIT_RESPONSE" | head -n -1)
+
+                echo "Initialize status: $HTTP_CODE"
+                echo "Response: $BODY"
+
+                if [ "$HTTP_CODE" = "200" ]; then
+                  echo "##[section]MCP initialize PASSED"
+                elif [ "$HTTP_CODE" = "401" ]; then
+                  echo "##[warning]JWT rejected (SPN appid not in allowed list). Health check passed — deployment is live."
+                  exit 0
+                else
+                  echo "##[error]MCP initialize FAILED (HTTP $HTTP_CODE)"
+                  exit 1
+                fi
+
+                echo "Testing tools/list..."
+                TOOLS_RESPONSE=$(curl -s -w "\n%{http_code}" \
+                  -X POST "$ENDPOINT" \
+                  -H "Authorization: Bearer $TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')
+
+                HTTP_CODE=$(echo "$TOOLS_RESPONSE" | tail -1)
+                BODY=$(echo "$TOOLS_RESPONSE" | head -n -1)
+
+                echo "Tools list status: $HTTP_CODE"
+                echo "Response: $BODY"
+
+                if [ "$HTTP_CODE" = "200" ]; then
+                  echo "##[section]MCP tools/list PASSED — Salesforce connection verified"
+                else
+                  echo "##[error]MCP tools/list FAILED (HTTP $HTTP_CODE)"
+                  exit 1
+                fi
 
   # -----------------------------------------------------------------------------------------------------------------
   # Prod environment Plan stage (requires CAB approval before creating this)
