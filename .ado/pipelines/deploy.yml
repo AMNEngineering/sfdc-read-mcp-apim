@@ -134,57 +134,61 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     jobs:
-      - job: Apply_Configuration
+      - deployment: Apply_Configuration
         displayName: "Apply Configuration"
-        steps:
-          - checkout: self
-            clean: true
+        environment: 'sfdc-read-dev'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  clean: true
 
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download Terraform Plan"
-            inputs:
-              artifact: 'TF_Plan_Artifact_dev'
-              path: '$(Build.ArtifactStagingDirectory)'
+                - task: DownloadPipelineArtifact@2
+                  displayName: "Download Terraform Plan"
+                  inputs:
+                    artifact: 'TF_Plan_Artifact_dev'
+                    path: '$(Build.ArtifactStagingDirectory)'
 
-          - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@1
-            displayName: "Terraform Install"
-            inputs:
-              terraformVersion: '1.12.0'
+                - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@1
+                  displayName: "Terraform Install"
+                  inputs:
+                    terraformVersion: '1.12.0'
 
-          - task: AzureCLI@2
-            displayName: "Terraform Init"
-            inputs:
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              addSpnToEnvironment: true
-              azureSubscription: '$(ServiceConnection_Lower)'
-              inlineScript: |
-                export ARM_CLIENT_ID=$servicePrincipalId
-                export ARM_CLIENT_SECRET=$servicePrincipalKey
-                export ARM_TENANT_ID=$tenantId
+                - task: AzureCLI@2
+                  displayName: "Terraform Init"
+                  inputs:
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    addSpnToEnvironment: true
+                    azureSubscription: '$(ServiceConnection_Lower)'
+                    inlineScript: |
+                      export ARM_CLIENT_ID=$servicePrincipalId
+                      export ARM_CLIENT_SECRET=$servicePrincipalKey
+                      export ARM_TENANT_ID=$tenantId
 
-                cd infrastructure
-                terraform init \
-                  -backend-config="storage_account_name=$(StateStorageAccount_Lower)" \
-                  -backend-config="container_name=$(VerticalName)" \
-                  -backend-config="key=$(VerticalName)-dev.tfstate" \
-                  -backend-config="resource_group_name=$(StateStorageAccountResourceGroup)" \
-                  -backend-config="subscription_id=$(StateStorageAccountSubscriptionId)"
+                      cd infrastructure
+                      terraform init \
+                        -backend-config="storage_account_name=$(StateStorageAccount_Lower)" \
+                        -backend-config="container_name=$(VerticalName)" \
+                        -backend-config="key=$(VerticalName)-dev.tfstate" \
+                        -backend-config="resource_group_name=$(StateStorageAccountResourceGroup)" \
+                        -backend-config="subscription_id=$(StateStorageAccountSubscriptionId)"
 
-          - task: AzureCLI@2
-            displayName: "Terraform Apply"
-            inputs:
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              addSpnToEnvironment: true
-              azureSubscription: '$(ServiceConnection_Lower)'
-              inlineScript: |
-                export ARM_CLIENT_ID=$servicePrincipalId
-                export ARM_CLIENT_SECRET=$servicePrincipalKey
-                export ARM_TENANT_ID=$tenantId
+                - task: AzureCLI@2
+                  displayName: "Terraform Apply"
+                  inputs:
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    addSpnToEnvironment: true
+                    azureSubscription: '$(ServiceConnection_Lower)'
+                    inlineScript: |
+                      export ARM_CLIENT_ID=$servicePrincipalId
+                      export ARM_CLIENT_SECRET=$servicePrincipalKey
+                      export ARM_TENANT_ID=$tenantId
 
-                cd infrastructure
-                terraform apply -input=false $(Build.ArtifactStagingDirectory)/dev_plan
+                      cd infrastructure
+                      terraform apply -input=false $(Build.ArtifactStagingDirectory)/dev_plan
 
   # -----------------------------------------------------------------------------------------------------------------
   # Dev environment Verify stage
@@ -334,57 +338,61 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     jobs:
-      - job: Apply_Configuration
+      - deployment: Apply_Configuration
         displayName: "Apply Configuration"
-        steps:
-          - checkout: self
-            clean: true
+        environment: 'sfdc-read-int'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  clean: true
 
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download Terraform Plan"
-            inputs:
-              artifact: 'TF_Plan_Artifact_int'
-              path: '$(Build.ArtifactStagingDirectory)'
+                - task: DownloadPipelineArtifact@2
+                  displayName: "Download Terraform Plan"
+                  inputs:
+                    artifact: 'TF_Plan_Artifact_int'
+                    path: '$(Build.ArtifactStagingDirectory)'
 
-          - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@1
-            displayName: "Terraform Install"
-            inputs:
-              terraformVersion: '1.12.0'
+                - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@1
+                  displayName: "Terraform Install"
+                  inputs:
+                    terraformVersion: '1.12.0'
 
-          - task: AzureCLI@2
-            displayName: "Terraform Init"
-            inputs:
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              addSpnToEnvironment: true
-              azureSubscription: '$(ServiceConnection_Upper)'
-              inlineScript: |
-                export ARM_CLIENT_ID=$servicePrincipalId
-                export ARM_CLIENT_SECRET=$servicePrincipalKey
-                export ARM_TENANT_ID=$tenantId
+                - task: AzureCLI@2
+                  displayName: "Terraform Init"
+                  inputs:
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    addSpnToEnvironment: true
+                    azureSubscription: '$(ServiceConnection_Upper)'
+                    inlineScript: |
+                      export ARM_CLIENT_ID=$servicePrincipalId
+                      export ARM_CLIENT_SECRET=$servicePrincipalKey
+                      export ARM_TENANT_ID=$tenantId
 
-                cd infrastructure
-                terraform init \
-                  -backend-config="storage_account_name=$(StateStorageAccount_Upper)" \
-                  -backend-config="container_name=$(VerticalName)" \
-                  -backend-config="key=$(VerticalName)-int.tfstate" \
-                  -backend-config="resource_group_name=$(StateStorageAccountResourceGroup)" \
-                  -backend-config="subscription_id=$(StateStorageAccountSubscriptionId)"
+                      cd infrastructure
+                      terraform init \
+                        -backend-config="storage_account_name=$(StateStorageAccount_Upper)" \
+                        -backend-config="container_name=$(VerticalName)" \
+                        -backend-config="key=$(VerticalName)-int.tfstate" \
+                        -backend-config="resource_group_name=$(StateStorageAccountResourceGroup)" \
+                        -backend-config="subscription_id=$(StateStorageAccountSubscriptionId)"
 
-          - task: AzureCLI@2
-            displayName: "Terraform Apply"
-            inputs:
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              addSpnToEnvironment: true
-              azureSubscription: '$(ServiceConnection_Upper)'
-              inlineScript: |
-                export ARM_CLIENT_ID=$servicePrincipalId
-                export ARM_CLIENT_SECRET=$servicePrincipalKey
-                export ARM_TENANT_ID=$tenantId
+                - task: AzureCLI@2
+                  displayName: "Terraform Apply"
+                  inputs:
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    addSpnToEnvironment: true
+                    azureSubscription: '$(ServiceConnection_Upper)'
+                    inlineScript: |
+                      export ARM_CLIENT_ID=$servicePrincipalId
+                      export ARM_CLIENT_SECRET=$servicePrincipalKey
+                      export ARM_TENANT_ID=$tenantId
 
-                cd infrastructure
-                terraform apply -input=false $(Build.ArtifactStagingDirectory)/int_plan
+                      cd infrastructure
+                      terraform apply -input=false $(Build.ArtifactStagingDirectory)/int_plan
 
   # -----------------------------------------------------------------------------------------------------------------
   # Int environment Verify stage
