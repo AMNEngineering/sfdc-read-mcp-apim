@@ -1,6 +1,6 @@
 # SFDCRead MCP-APIM Contract: Status Report
 
-**Date:** 2026-06-07 (updated 2026-06-08)  
+**Date:** 2026-06-07 (updated 2026-06-09)  
 **Project:** Salesforce Read-Only MCP Gateway (sobject-reads)  
 **Scope:** Dev and Int environments (Prod is out of scope for this phase)
 
@@ -10,7 +10,7 @@
 
 The SFDCRead project exposes Salesforce's read-only MCP server through Azure API Management, enabling Power BI and Copilot Studio agents to query Salesforce data securely via Entra ID authentication. Int environment is deployed with real Salesforce wiring (Build 1.0.56). All APIM infrastructure, policies, Key Vault, AFD routing, and identity are in place and verified.
 
-**Single external blocker:** Salesforce Connected App rejects `client_credentials` grant — returns `"request not supported on this domain"`. Requires Salesforce admin to enable the flow and assign a Run As user.
+**Status as of 2026-06-09:** Token + MCP both proven working end-to-end via `client_credentials`. The `client_credentials` grant returns a token with `mcp_api` scope and `api_instance_url=https://api.salesforce.com`; MCP `initialize`, `tools/list`, and `getUserInfo` at `https://api.salesforce.com/platform/mcp/v1/sandbox/platform/sobject-reads` all return 200. Remaining gap: Run-As user's permission set needs Account (and other in-scope SObjects) added for `soqlQuery` to return data.
 
 ---
 
@@ -65,7 +65,7 @@ The SFDCRead project exposes Salesforce's read-only MCP server through Azure API
 | Policy | Status | Details |
 |--------|--------|---------|
 | Dev mock policy | Done | Full MCP protocol mock inline: initialize, tools/list, tools/call (6 tools), notifications, error handling |
-| Int/Prod real policy | Done | Entra JWT validation → Salesforce OAuth token exchange (`client_credentials`) → dynamic backend routing to SF instance URL |
+| Int/Prod real policy | Done | Entra JWT validation → Salesforce OAuth token exchange (`client_credentials`) → backend routing to `api.salesforce.com` (MCP endpoint, not the org's `instance_url`) |
 | Health check policy | Done | `GET /health` returns service status without JWT (required for AFD probes and pipeline verification) |
 
 ### Test Harness
@@ -82,27 +82,40 @@ The SFDCRead project exposes Salesforce's read-only MCP server through Azure API
 
 ## Salesforce Connection Status
 
-### Blocker: `client_credentials` Grant Rejected
+### ~~Blocker: `client_credentials` Grant Rejected~~ — RESOLVED 2026-06-08
 
-**Tested 2026-06-08.** Direct OAuth call from both APIM and local machine:
+Salesforce team fixed the OAuth configuration. As of 2026-06-09 the `client_credentials` grant returns a token with the additional `mcp_api` scope and an `api_instance_url` field naming the MCP backend:
 
 ```
-POST https://test.salesforce.com/services/oauth2/token
+POST https://amnhealthcare--qa.sandbox.my.salesforce.com/services/oauth2/token
 grant_type=client_credentials&client_id=<KV value>&client_secret=<KV value>
 
-Response: 400
-{"error":"invalid_grant","error_description":"request not supported on this domain"}
+Response: 200
+{
+  "access_token":"00DVC00000A0rRZ!...",
+  "scope":"sfap_api mcp_api api",
+  "instance_url":"https://amnhealthcare--qa.sandbox.my.salesforce.com",
+  "api_instance_url":"https://api.salesforce.com",
+  "token_type":"Bearer"
+}
 ```
 
-Same result against `login.salesforce.com`.
+Standard REST API confirmed working with this token (SObject listing returns data).
 
-**Root cause:** The Salesforce Connected App is not configured for the `client_credentials` flow. Required Salesforce admin actions:
+### ~~Blocker: MCP Server Not Activated~~ — RESOLVED 2026-06-09
 
-1. **Enable Client Credentials Flow** on the Connected App (Setup → App Manager → Edit)
-2. **Assign a "Run As" user** for the client_credentials flow (Setup → Manage Connected Apps → Edit Policies)
-3. **Verify the token endpoint** — may need org-specific sandbox domain instead of `test.salesforce.com` (e.g., `https://amnhealthcare--<sandbox>.sandbox.my.salesforce.com/services/oauth2/token`)
+The MCP server is live at `https://api.salesforce.com/platform/mcp/v1/sandbox/platform/sobject-reads` (not on the org's `instance_url` — that was the wrong assumption from 2026-06-08). Confirmed by direct call:
 
-**APIM side is confirmed working:** JWT validation passes, OAuth exchange executes, policy correctly handles the token response. The 500 is caused by Salesforce returning a 400 to the token exchange.
+- `initialize` → 200
+- `tools/list` → 200, returns 6 tools (`getRelatedRecords`, `listRecentSobjectRecords`, `soqlQuery`, `find`, `getUserInfo`, `getObjectSchema`)
+- `getUserInfo` → 200, returns the Run-As user identity (`copilotstudio@amnhealthcare.com.qa`)
+- `soqlQuery` for `Account` → reaches Salesforce, returns `INVALID_TYPE` (Run-As perm set missing Account read — not a wiring issue)
+
+See [SALESFORCE-REPRO-2026-06-08.md](SALESFORCE-REPRO-2026-06-08.md) for working-call details.
+
+### Open Blocker: Run-As permission set tuning
+
+The Run-As user's permission set `MCP_ReadOnly_Access` does not grant Account read. SF admin needs to add Account (and any other in-scope SObjects) to the perm set so the MCP `soqlQuery` / `find` / `getObjectSchema` tools return data.
 
 ---
 
@@ -114,10 +127,13 @@ Same result against `login.salesforce.com`.
 | 2 | Named values resolve from Key Vault | Pass | Verified via REST API — both secrets show `status: Success` |
 | 3 | AFD routing to APIM | Pass | Health endpoints return 200 on both dev and int |
 | 4 | JWT validation accepts Azure CLI token | Pass | 401 → 200 after adding Azure CLI client ID to policy |
-| 5 | Salesforce OAuth token exchange | **Fail** | `client_credentials` grant rejected by Salesforce — Connected App config needed |
-| 6 | MCP initialize through APIM to Salesforce | Blocked | Depends on #5 |
-| 7 | MCP tools/list returns Salesforce tools | Blocked | Depends on #5 |
-| 8 | MCP tools/call (soqlQuery) returns real data | Blocked | Depends on #5 |
+| 5 | Salesforce OAuth token exchange | **Pass** | Fixed 2026-06-08; scopes now `sfap_api mcp_api api` (2026-06-09) |
+| 5a | Salesforce REST API with token | **Pass** | SObject listing returns data, confirming token + API access work |
+| 6 | MCP initialize (direct, against `api.salesforce.com`) | **Pass** (2026-06-09) | |
+| 7 | MCP tools/list returns Salesforce tools | **Pass** (2026-06-09) | 6 tools returned |
+| 8 | MCP tools/call (`getUserInfo`) | **Pass** (2026-06-09) | Returns Run-As identity |
+| 8a | MCP tools/call (`soqlQuery` for Account) | **Fail** | `INVALID_TYPE` — SF perm set missing Account read (not wiring) |
+| 8b | MCP e2e through APIM | Pending | Needs reverted client_credentials policy deployed |
 | 9 | Copilot Studio → APIM → Salesforce e2e | TODO | |
 | 10 | Power BI → APIM → Salesforce e2e | TODO | |
 
@@ -134,7 +150,8 @@ Same result against `login.salesforce.com`.
 | AD groups | Done | Done | -- |
 | Key Vault | N/A (mock creds) | Done (secrets loaded, resolving) | -- |
 | AFD routing | Done | Done | -- |
-| SF OAuth working | N/A (mocked) | **Blocked — SF Connected App config** | -- |
+| SF OAuth working | N/A (mocked) | **Working** (fixed 2026-06-08, scope `mcp_api` added 2026-06-09) | -- |
+| SF MCP endpoint | N/A (mocked) | **Working** at `api.salesforce.com` (2026-06-09) | -- |
 | Pipeline verify stage | Pending commit | Pending commit | -- |
 
 ---
@@ -143,10 +160,12 @@ Same result against `login.salesforce.com`.
 
 ### External Dependency
 
-| Item | Owner | Action |
+| Item | Owner | Status |
 |------|-------|--------|
-| Salesforce Connected App: enable `client_credentials` grant + assign Run As user | Salesforce Admin | Required before int e2e testing works |
-| Salesforce token URL: confirm correct sandbox domain | Salesforce Admin | May need org-specific URL instead of `test.salesforce.com` |
+| ~~Salesforce Connected App: enable `client_credentials` grant + assign Run As user~~ | Salesforce Admin | **Done** (2026-06-08) |
+| ~~Salesforce token URL: confirm correct sandbox domain~~ | Salesforce Admin | **Done** — `amnhealthcare--qa.sandbox.my.salesforce.com` |
+| ~~Activate MCP Server (`platform/sobject-reads`) in Salesforce Setup~~ | Salesforce Admin | **Done** (confirmed live at `api.salesforce.com` on 2026-06-09) |
+| Add `Account` (and any other in-scope SObjects) to `MCP_ReadOnly_Access` permission set on the Run-As user | Salesforce Admin | **Open** — currently `soqlQuery` returns `INVALID_TYPE` |
 
 ### Our Items
 
@@ -164,9 +183,9 @@ Same result against `login.salesforce.com`.
 
 ## Next Steps
 
-1. **Commit:** Push local changes — dev stages, verify stages, Azure CLI client ID in both policies
-2. **Salesforce Admin:** Enable `client_credentials` grant on Connected App, assign Run As user, confirm token URL
-3. **Re-test:** Once SF Connected App is configured, re-run `Invoke-ApimSmokeTest.ps1 -Environment int`
+1. **Commit + push** the reverted `client_credentials` policy (routes to `api.salesforce.com`) and corresponding Terraform changes
+2. **Salesforce Admin:** Add `Account` (and other in-scope SObjects) to `MCP_ReadOnly_Access` perm set on the Run-As user
+3. **Re-test:** `Invoke-ApimSmokeTest.ps1 -Environment int` once int APIM picks up the redeployed policy
 4. **Copilot Studio:** Test Copilot Studio agent calling APIM → Salesforce end-to-end
 
 ---

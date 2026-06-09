@@ -23,6 +23,9 @@ sfdc_client_id     = ""
 sfdc_client_secret = ""
 sfdc_token_url     = "https://amnhealthcare--qa.sandbox.my.salesforce.com/services/oauth2/token"
 
+# MCP backend (routes to api.salesforce.com, not the SF instance URL)
+sfdc_mcp_base_url  = "https://api.salesforce.com"
+
 # Tags
 tags = {
   environment = "int"

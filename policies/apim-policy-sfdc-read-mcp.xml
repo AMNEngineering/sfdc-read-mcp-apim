@@ -29,6 +29,7 @@
         <set-variable name="sfClientId" value="{{SFDC-MCP-Client-ID}}" />
         <set-variable name="sfClientSecret" value="{{SFDC-MCP-Client-Secret}}" />
         <set-variable name="sfTokenUrl" value="{{SFDC-MCP-Token-URL}}" />
+        <set-variable name="sfMcpBaseUrl" value="{{SFDC-MCP-Base-URL}}" />
         <set-variable name="sfMcpPath" value="{{SFDC-MCP-Path}}" />
 
         <!-- Salesforce OAuth token exchange (client_credentials) -->
@@ -46,12 +47,11 @@
             }</set-body>
         </send-request>
 
-        <!-- Extract Salesforce access token and instance URL -->
+        <!-- Extract Salesforce access token -->
         <set-variable name="sfAccessToken" value="@(((IResponse)context.Variables["sfTokenResponse"]).Body.As<JObject>()["access_token"].ToString())" />
-        <set-variable name="sfInstanceUrl" value="@(((IResponse)context.Variables["sfTokenResponse"]).Body.As<JObject>()["instance_url"].ToString())" />
 
-        <!-- Route to the Salesforce instance returned by OAuth -->
-        <set-backend-service base-url="@((string)context.Variables["sfInstanceUrl"] + (string)context.Variables["sfMcpPath"])" />
+        <!-- Route to Salesforce MCP endpoint (api.salesforce.com, not instance_url) -->
+        <set-backend-service base-url="@((string)context.Variables["sfMcpBaseUrl"] + (string)context.Variables["sfMcpPath"])" />
 
         <!-- Replace inbound Entra JWT with Salesforce bearer token -->
         <set-header name="Authorization" exists-action="override">

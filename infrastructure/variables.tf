@@ -47,6 +47,12 @@ variable "sfdc_client_secret" {
   default     = ""
 }
 
+variable "sfdc_mcp_base_url" {
+  description = "Salesforce MCP API base URL — https://api.salesforce.com for all orgs"
+  type        = string
+  default     = "https://api.salesforce.com"
+}
+
 variable "key_vault_name" {
   description = "Key Vault name for SFDC credentials. When set, named values reference KV secrets instead of inline values."
   type        = string

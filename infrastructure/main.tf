@@ -38,6 +38,12 @@ module "named_values" {
         display_name = "SFDC-MCP-Path"
         value        = var.sfdc_mcp_path
       }
+
+      # MCP base URL (api.salesforce.com for all orgs)
+      "nv-sfdc-read-mcp-base-url" = {
+        display_name = "SFDC-MCP-Base-URL"
+        value        = var.sfdc_mcp_base_url
+      }
     },
 
     # Salesforce credentials: Key Vault references for int/prod, inline for dev

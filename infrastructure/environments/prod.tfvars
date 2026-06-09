@@ -24,6 +24,9 @@ sfdc_client_id     = "REPLACE_WITH_SFDC_PROD_CLIENT_ID"
 sfdc_client_secret = "REPLACE_WITH_SFDC_PROD_CLIENT_SECRET"
 sfdc_token_url     = "https://login.salesforce.com/services/oauth2/token"
 
+# MCP backend (routes to api.salesforce.com, not the SF instance URL)
+sfdc_mcp_base_url  = "https://api.salesforce.com"
+
 # Tags
 tags = {
   environment = "prod"
