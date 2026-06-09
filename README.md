@@ -20,6 +20,22 @@ Salesforce Org
 2. **MCP Server Layer**: `sobject-reads` server type (no mutation capabilities)
 3. **Salesforce Layer**: Read-only user permissions, FLS, sharing rules
 
+## Design Intent — Limited Exposure is the Product
+
+This gateway exists to **constrain** what Entra-authenticated callers see, not to mirror the full Salesforce org through APIM. Treat scope decisions accordingly:
+
+- **Not every SObject is exposed.** The Run-As user's permission set (`MCP_ReadOnly_Access`) defines the visible surface, and that surface is deliberately narrow.
+- **Not every field is exposed.** FLS on the Run-As user further trims columns within an exposed object.
+- **Read-only.** No mutation tools, no mutation paths.
+
+### Implication for tests and development
+
+A data-access error from Salesforce (`INVALID_TYPE`, "field not accessible", "sObject not supported", etc.) is **not by default a bug.** It usually means the perm set or FLS is doing its job. The smoke test reflects this — such errors are `WARN`, not `FAIL`, and don't break the CI gate.
+
+Before recommending a perm-set or FLS widening, confirm with the data owner whether the SObject/field is *supposed* to be in scope for this gateway's consumers. Default answer is no.
+
+Symptoms that *are* bugs (and should fail loudly): JWT validation gaps, broken OAuth exchange, body/header mangling in the policy, routing to the wrong backend, protocol-level errors (`tools/list` shape, session-id handling, etc.).
+
 ## Repository Structure
 
 ```

@@ -7,6 +7,16 @@
     - Calls through APIM gateway
     - Exercises all 6 MCP tools
     - Validates responses
+
+    Status semantics:
+      PASS = wiring + protocol + auth healthy and tool returned data
+      WARN = wiring/protocol healthy, but Salesforce returned a data-access
+             error (e.g. INVALID_TYPE, "field not accessible"). By design
+             this gateway exposes a narrow SObject/field surface — a WARN
+             here is the perm set / FLS doing its job, not a regression.
+             See README "Design Intent" before treating these as bugs.
+      FAIL = something is actually broken (JWT, OAuth, routing, protocol).
+             Suite exits 1 only when a FAIL is present.
 .PARAMETER Environment
     Target environment: dev, int, prod
 .PARAMETER TenantId
