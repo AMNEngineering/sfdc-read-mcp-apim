@@ -79,6 +79,11 @@ See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for ADO pipeline setup and usage.
 - [Salesforce Setup](docs/SALESFORCE-SETUP.md) - External Client App configuration
 - [Power BI Setup](examples/power-bi-setup.md) - Client connection guide
 
+## AI Skill (WIP)
+
+- [SFDCRead Auth Architecture Skill](.claude/skills/sfdc-read-auth-architecture/SKILL.md) - Project-local guidance for APIM to Salesforce auth pattern selection
+- [Auth Decision Matrix](.claude/skills/sfdc-read-auth-architecture/AUTH-DECISION-MATRIX.md) - Quick flow selection and validation checklist
+
 ## Testing
 
 The test harness validates:

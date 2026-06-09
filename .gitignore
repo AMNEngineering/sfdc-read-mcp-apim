@@ -19,6 +19,7 @@ terraform.rc
 *.pfx
 *.p12
 **/secrets/
+.secrets/
 **/.env
 **/.env.local
 infrastructure/scripts/New-SfdcReadKeyVault.ps1
