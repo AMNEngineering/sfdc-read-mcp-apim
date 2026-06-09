@@ -133,6 +133,11 @@ function Invoke-McpRequest {
     $headers = @{
         Authorization      = "Bearer $BearerToken"
         "x-correlation-id" = $CorrelationId
+        Accept             = "application/json, text/event-stream"
+    }
+
+    if ($script:McpSessionId) {
+        $headers["Mcp-Session-Id"] = $script:McpSessionId
     }
 
     if ($VerboseLogging) {
@@ -152,6 +157,12 @@ function Invoke-McpRequest {
         if ($VerboseLogging) {
             Write-TestLog "Response headers: $($responseHeaders | ConvertTo-Json -Compress)" -Level INFO
             Write-TestLog "Response: $($response | ConvertTo-Json -Depth 10 -Compress)" -Level INFO
+        }
+
+        # Capture MCP session ID from initialize response for subsequent requests
+        if (-not $script:McpSessionId -and $responseHeaders.ContainsKey('Mcp-Session-Id')) {
+            $script:McpSessionId = @($responseHeaders['Mcp-Session-Id'])[0]
+            Write-TestLog "MCP session established: $script:McpSessionId" -Level SUCCESS
         }
 
         # Validate correlation ID echo
