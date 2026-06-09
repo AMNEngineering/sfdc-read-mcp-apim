@@ -16,7 +16,7 @@ Salesforce Org
 
 ## Layered Security Model
 
-1. **APIM Layer**: Entra JWT validation, rate limiting (300 req/min per user), audit logging
+1. **APIM Layer**: Entra JWT validation (caller must hold the `MCP.Read` app role, granted via membership in `AZ_AMN_AAD_SfdcReadMcp_{Env}_User`), rate limiting (300 req/min per user), audit logging
 2. **MCP Server Layer**: `sobject-reads` server type (no mutation capabilities)
 3. **Salesforce Layer**: Read-only user permissions, FLS, sharing rules
 
@@ -82,11 +82,19 @@ See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for ADO pipeline setup and usage.
 
 ## Environments
 
-| Environment | APIM Instance | Backend | Approval Gate |
-|-------------|---------------|---------|---------------|
-| Dev | amn-wus2-hub-apim-d02 | Mock MCP server (localhost) | None |
-| Int | amn-wus2-hub-apim-d02 | Salesforce Sandbox | None |
-| Prod | amn-wus2-hub-apim-p02 | Salesforce Production | Manual (GRC + Ops) |
+| Environment | APIM Instance | Backend | Access Group (Entra) | Approval Gate |
+|-------------|---------------|---------|----------------------|----------------|
+| Dev | `amn-wus2-hub-apim-d02` | Inline APIM mock | `AZ_AMN_AAD_SfdcReadMcp_Dev_User` | Manual (`dev_apply`) |
+| Int | `amn-wus2-hub-apim-i02` | Salesforce Sandbox | `AZ_AMN_AAD_SfdcReadMcp_Int_User` | Manual (`int_apply`) |
+| Prod | `amn-wus2-hub-apim-p02` | Salesforce Production | `AZ_AMN_AAD_SfdcReadMcp_Prod_User` | Manual (GRC + Ops, out of scope this phase) |
+
+Group membership grants the `MCP.Read` app role on the per-environment Entra app registration, which is what the APIM JWT-validation policy checks. AD Connect syncs the on-prem AD groups into Entra. Optional admin group: `AZ_AMN_AAD_SfdcReadMcp_Dev_Admin` for lead developers.
+
+```bash
+# See who currently has access in int:
+az ad group member list --group "AZ_AMN_AAD_SfdcReadMcp_Int_User" \
+  --query "[].{name:displayName, upn:userPrincipalName}" -o table
+```
 
 ## Documentation
 
