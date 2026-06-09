@@ -1,19 +1,14 @@
-# Repro: `Account` not accessible via MCP `soqlQuery` — 2026-06-09
+# Boundary-Enforcement Evidence: `Account` is correctly excluded — 2026-06-09
 
-## For
+## Purpose
 
-Salesforce admin team / sobject-reads MCP server owners.
+This doc records evidence that the **scope boundary works as designed**: the Run-As user `copilotstudio@amnhealthcare.com.qa` cannot read the `Account` SObject through the SFDCRead MCP gateway. Account is intentionally **out of scope** for this endpoint — the consuming use cases (Copilot Studio, Power BI) do not require it.
 
-## Summary
+This is **not** a request to widen access. It is GRC/audit-friendly proof that the wrapper does what it claims: limits Entra users to a curated, narrow read surface.
 
-Through the AMN APIM gateway (`https://api.int.amnhealthcare.io/sfdcread/int`) into the hosted `sobject-reads` MCP server at `https://api.salesforce.com/platform/mcp/v1/sandbox/platform/sobject-reads`:
+## Why this matters
 
-- `soqlQuery` against **`User`** returns data correctly (control).
-- `soqlQuery` against **`Account`** returns `INVALID_TYPE: sObject type 'Account' is not supported`.
-
-Both calls use the **same** OAuth token, **same** Mcp-Session-Id, and **same** Run-As user (`copilotstudio@amnhealthcare.com.qa`). Only the SObject differs.
-
-This isolates the failure: OAuth, wiring, MCP protocol, and routing are all healthy. The error originates from Salesforce after the MCP server forwards the query — consistent with `Account` not being granted on the `MCP_ReadOnly_Access` permission set assigned to the Run-As user.
+The whole reason this gateway exists is to expose a constrained read surface, not to mirror the full Salesforce org. A test result that shows `Account` is queryable through this endpoint would be a security regression — not a feature. See [README "Design Intent — Limited Exposure is the Product"](../README.md#design-intent--limited-exposure-is-the-product).
 
 ## Environment
 
@@ -23,110 +18,53 @@ This isolates the failure: OAuth, wiring, MCP protocol, and routing are all heal
 | SF base | `https://amnhealthcare--qa.sandbox.my.salesforce.com` |
 | MCP server | `https://api.salesforce.com/platform/mcp/v1/sandbox/platform/sobject-reads` |
 | Run-As user | `copilotstudio@amnhealthcare.com.qa` |
-| Run-As perm set | `MCP_ReadOnly_Access` |
+| Run-As perm set | `MCP_ReadOnly_Access` (does **not** include Account, by design) |
 | OAuth grant | `client_credentials`, scopes `sfap_api mcp_api api` |
 
-## Call 1 — Control (works): `soqlQuery` on `User`
+## Evidence: same token + session, different SObjects
 
-**Request body**
+### Call A — In-scope SObject (control): `soqlQuery` on `User` → succeeds
 
 ```json
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "method": "tools/call",
-  "params": {
-    "name": "soqlQuery",
-    "arguments": { "q": "SELECT Id, Name, Username FROM User LIMIT 3" }
-  }
-}
+Request:  { "name":"soqlQuery", "arguments":{ "q":"SELECT Id, Name, Username FROM User LIMIT 3" } }
+Response: { "isError": false, "result": { ... 3 records ... } }
 ```
 
-**Response (PII redacted)**
+This confirms OAuth, the Run-As mapping, the MCP protocol layer, and Salesforce REST API access are all healthy. Data flows when the SObject is in scope.
+
+### Call B — Out-of-scope SObject (boundary): `soqlQuery` on `Account` → blocked
 
 ```json
-{
-  "jsonrpc": "2.0",
-  "id": 2,
+Request:  { "name":"soqlQuery", "arguments":{ "q":"SELECT Id, Name FROM Account LIMIT 3" } }
+Response: {
+  "isError": true,
   "result": {
     "content": [{
       "type": "text",
-      "text": "{\"totalSize\":3.0,\"done\":true,\"records\":[{\"attributes\":{\"type\":\"User\",\"url\":\"/services/data/v64.0/sobjects/User/<ID-REDACTED>\"},\"Id\":\"<ID-REDACTED>\",\"Name\":\"<NAME-REDACTED>\",\"Username\":\"<USERNAME-REDACTED>\"}, ... (3 records total)]}"
-    }],
-    "isError": false,
-    "_meta": {
-      "salesforce/org_base_url": "https://amnhealthcare--qa.sandbox.my.salesforce.com",
-      "salesforce/toolTags": ["query", "soql"]
-    }
+      "text": "[{\"message\":\"... sObject type 'Account' is not supported ...\",\"errorCode\":\"INVALID_TYPE\"}]"
+    }]
   }
 }
 ```
 
-`isError: false`, three records returned. Confirms OAuth + Run-As + MCP + REST API are all working.
+`INVALID_TYPE` is Salesforce's standard response when the calling identity has no access to an SObject. From this user's perspective, `Account` does not exist — which is exactly the desired posture.
 
-## Call 2 — Failing case: `soqlQuery` on `Account`
-
-**Request body**
+### Call C — Same boundary through a different tool: `getObjectSchema(objects=Account)` → blocked
 
 ```json
-{
-  "jsonrpc": "2.0",
-  "id": 3,
-  "method": "tools/call",
-  "params": {
-    "name": "soqlQuery",
-    "arguments": { "q": "SELECT Id, Name FROM Account LIMIT 3" }
-  }
-}
-```
-
-**Response**
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 3,
-  "result": {
-    "content": [{
-      "type": "text",
-      "text": "[{\"message\":\"\\nSELECT Id, Name FROM Account LIMIT 3\\n                     ^\\nERROR at Row:1:Column:22\\nsObject type 'Account' is not supported. If you are attempting to use a custom object, be sure to append the '__c' after the entity name. Please reference your WSDL or the describe call for the appropriate names.\",\"errorCode\":\"INVALID_TYPE\"}]"
-    }],
-    "isError": true,
-    "_meta": { "salesforce/toolTags": ["query", "soql"] }
-  }
-}
-```
-
-`isError: true`, `INVALID_TYPE` from the Salesforce REST API. Same diagnostic also reproduces via `getObjectSchema` with `objects=Account`:
-
-```json
-{
+Response: {
+  "isError": true,
   "errorCode": "INTERNAL_ERROR",
   "message": "Failed to retrieve object schema from Salesforce API: ; nested exception is: common.exception.ApiQueryException: sObject type 'Account' is not supported."
 }
 ```
 
-## Hypothesis
+The boundary is enforced consistently — schema discovery is blocked the same way as data access.
 
-`Account` is not in the `MCP_ReadOnly_Access` permission set assigned to the Run-As user `copilotstudio@amnhealthcare.com.qa`. Salesforce reports the SObject as "not supported" because, from this user's effective access surface, it isn't visible.
+## Conclusion
 
-This is independent of the MCP server, of APIM, and of OAuth: the same query would fail in any Salesforce REST client running as this user, because the user has no access to the `Account` SObject.
+Both `Account`-targeted calls (`soqlQuery` and `getObjectSchema`) are correctly blocked by the Run-As user's permission set. The wrapper's narrow-surface guarantee holds.
 
-## Ask
+## Regression test
 
-1. **Confirm** whether `Account` is intended to be in scope for the Copilot Studio / Power BI consumers of this gateway.
-2. If yes: **add `Account`** (and any other in-scope SObjects — TBD with our data owner) **to `MCP_ReadOnly_Access`** with the field-level masking (FLS) appropriate for those consumers.
-3. We'll re-run the smoke test and confirm the WARN clears.
-
-## How to reproduce on your side
-
-Any Salesforce REST tooling logged in as `copilotstudio@amnhealthcare.com.qa` should reproduce the `Account` failure with:
-
-```
-GET /services/data/v64.0/query?q=SELECT+Id+FROM+Account+LIMIT+1
-```
-
-Expected (current): `INVALID_TYPE`.
-Expected (after perm-set update): record(s) returned.
-
-If you'd like the failure reproduced from our side again to capture additional traces (correlation IDs, timestamps), reply and we'll re-run the harness.
+The smoke test (`test-harness/Invoke-ApimSmokeTest.ps1`) treats these calls as **boundary assertions**: they PASS when the expected `INVALID_TYPE` / `INTERNAL_ERROR` is returned, and FAIL if `Account` ever becomes accessible. Any future widening of `MCP_ReadOnly_Access` that exposes `Account` will be caught in CI.

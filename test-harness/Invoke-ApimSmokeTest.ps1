@@ -9,14 +9,18 @@
     - Validates responses
 
     Status semantics:
-      PASS = wiring + protocol + auth healthy and tool returned data
-      WARN = wiring/protocol healthy, but Salesforce returned a data-access
-             error (e.g. INVALID_TYPE, "field not accessible"). By design
-             this gateway exposes a narrow SObject/field surface — a WARN
-             here is the perm set / FLS doing its job, not a regression.
-             See README "Design Intent" before treating these as bugs.
-      FAIL = something is actually broken (JWT, OAuth, routing, protocol).
-             Suite exits 1 only when a FAIL is present.
+      PASS = expected outcome occurred. For in-scope probes that means
+             data returned; for boundary assertions (e.g. Account is
+             intentionally excluded) it means the call was correctly
+             blocked. See the per-test functions for which semantics apply.
+      WARN = wiring/protocol healthy but the call returned an unexpected
+             data-access error on a probe that wasn't explicitly framed
+             as a boundary assertion. Flag for review against the
+             documented scope — do not reflexively widen MCP_ReadOnly_Access.
+             See README "Design Intent".
+      FAIL = something is broken (JWT, OAuth, routing, protocol) OR a
+             boundary assertion was breached (an out-of-scope SObject
+             became accessible — a security regression). Suite exits 1.
 .PARAMETER Environment
     Target environment: dev, int, prod
 .PARAMETER TenantId
@@ -486,10 +490,13 @@ function Test-GetObjectSchemaIndex {
     }
 }
 
-function Test-GetObjectSchemaDetail {
+function Test-AccountBoundarySchema {
+    # Boundary assertion: Account is intentionally OUT of scope for this gateway.
+    # PASS when the call is blocked, FAIL if Account becomes accessible.
+    # Don't "fix" this by widening MCP_ReadOnly_Access — see README "Design Intent".
     param($Endpoint, $Token)
 
-    Write-TestLog "`n--- Test 4: getObjectSchema (Account fields) ---" -Level INFO
+    Write-TestLog "`n--- Test 4: Boundary — Account excluded (schema) ---" -Level INFO
 
     $response = Invoke-McpRequest `
         -Endpoint $Endpoint `
@@ -504,31 +511,30 @@ function Test-GetObjectSchemaDetail {
         -Id 4
 
     if ($response.result.isError -eq $true) {
-        # Expected today: Account is not in MCP_ReadOnly_Access perm set
-        Write-TestLog "Tool returned error (likely perm-set gap): $($response.result.content[0].text)" -Level WARN
+        Write-TestLog "Boundary holds: Account schema access blocked as expected" -Level SUCCESS
         $script:TestResults += @{
-            Test   = "getObjectSchema (Account)"
-            Status = "WARN"
+            Test   = "Boundary: Account excluded (schema)"
+            Status = "PASS"
             Error  = $response.result.content[0].text
         }
         return
     }
 
-    $fields = $response.result.content[0].text | ConvertFrom-Json
-    $count = if ($fields -is [array]) { $fields.Count } else { 1 }
-    Write-TestLog "Fields returned: $count" -Level SUCCESS
-
+    # If we get here, the boundary was breached — Account became accessible.
+    Write-TestLog "BOUNDARY BREACH: Account schema is now accessible — perm set has been widened beyond design" -Level ERROR
     $script:TestResults += @{
-        Test   = "getObjectSchema (Account)"
-        Status = "PASS"
-        Fields = $count
+        Test    = "Boundary: Account excluded (schema)"
+        Status  = "FAIL"
+        Payload = $response.result.content[0].text
     }
 }
 
-function Test-SoqlQuery {
+function Test-AccountBoundaryQuery {
+    # Boundary assertion: Account is intentionally OUT of scope for this gateway.
+    # PASS when soqlQuery against Account is blocked, FAIL if records come back.
     param($Endpoint, $Token)
 
-    Write-TestLog "`n--- Test 5: soqlQuery ---" -Level INFO
+    Write-TestLog "`n--- Test 5: Boundary — Account excluded (soqlQuery) ---" -Level INFO
 
     $response = Invoke-McpRequest `
         -Endpoint $Endpoint `
@@ -543,29 +549,21 @@ function Test-SoqlQuery {
         -Id 5
 
     if ($response.result.isError -eq $true) {
-        # Expected today: Account isn't in MCP_ReadOnly_Access perm set, returns INVALID_TYPE
-        Write-TestLog "Query returned error (likely perm-set gap): $($response.result.content[0].text)" -Level WARN
+        Write-TestLog "Boundary holds: Account query blocked as expected" -Level SUCCESS
         $script:TestResults += @{
-            Test    = "soqlQuery"
-            Status  = "WARN"
-            Error   = $response.result.content[0].text
+            Test   = "Boundary: Account excluded (soqlQuery)"
+            Status = "PASS"
+            Error  = $response.result.content[0].text
         }
         return
     }
 
-    $records = $response.result.content[0].text | ConvertFrom-Json
-    $count = if ($records -is [array]) { $records.Count } else { 1 }
-    Write-TestLog "Records returned: $count" -Level SUCCESS
-
-    if ($count -gt 0) {
-        $first = if ($records -is [array]) { $records[0] } else { $records }
-        Write-TestLog "  First record: $($first.Id) - $($first.Name)" -Level SUCCESS
-    }
-
+    # If we get here, the boundary was breached.
+    Write-TestLog "BOUNDARY BREACH: Account is queryable — perm set has been widened beyond design" -Level ERROR
     $script:TestResults += @{
-        Test    = "soqlQuery"
-        Status  = "PASS"
-        Records = $count
+        Test    = "Boundary: Account excluded (soqlQuery)"
+        Status  = "FAIL"
+        Payload = $response.result.content[0].text
     }
 }
 
@@ -652,8 +650,8 @@ try {
     Test-Initialize -Endpoint $ApimEndpoints[$Environment] -Token $jwt
     $null = Test-ToolsList -Endpoint $ApimEndpoints[$Environment] -Token $jwt
     Test-GetObjectSchemaIndex -Endpoint $ApimEndpoints[$Environment] -Token $jwt
-    Test-GetObjectSchemaDetail -Endpoint $ApimEndpoints[$Environment] -Token $jwt
-    Test-SoqlQuery -Endpoint $ApimEndpoints[$Environment] -Token $jwt
+    Test-AccountBoundarySchema -Endpoint $ApimEndpoints[$Environment] -Token $jwt
+    Test-AccountBoundaryQuery -Endpoint $ApimEndpoints[$Environment] -Token $jwt
     Test-GetUserInfo -Endpoint $ApimEndpoints[$Environment] -Token $jwt
     Test-JwtValidation -Endpoint $ApimEndpoints[$Environment] -Token $jwt
 

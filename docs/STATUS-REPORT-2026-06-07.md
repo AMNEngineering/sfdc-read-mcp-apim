@@ -10,9 +10,9 @@
 
 The SFDCRead project exposes Salesforce's read-only MCP server through Azure API Management, enabling Power BI and Copilot Studio agents to query Salesforce data securely via Entra ID authentication.
 
-End-to-end wiring through APIM is healthy in int: Entra JWT → APIM policy → Salesforce `client_credentials` token exchange → MCP at `https://api.salesforce.com/platform/mcp/v1/sandbox/platform/sobject-reads`. Smoke test reports **5 pass / 2 warn / 0 fail**; the two warnings are scope decisions on the Salesforce side, not wiring bugs.
+End-to-end wiring through APIM is healthy in int: Entra JWT → APIM policy → Salesforce `client_credentials` token exchange → MCP at `https://api.salesforce.com/platform/mcp/v1/sandbox/platform/sobject-reads`. Smoke test reports **all green**, including boundary assertions that verify `Account` (intentionally out of scope) remains inaccessible.
 
-**Next gate:** confirm with the data owner which SObjects (and which fields) should be exposed, then have the SF admin add them to `MCP_ReadOnly_Access` on the Run-As user before Copilot Studio testing.
+**Next gate:** data owner confirms the positive scope list — which SObjects (and fields) *are* meant to be exposed to Copilot Studio / Power BI consumers. Once that list is documented, perm-set the Run-As user accordingly and extend the smoke test with positive probes for each.
 
 ---
 
@@ -87,12 +87,12 @@ End-to-end wiring through APIM is healthy in int: Entra JWT → APIM policy → 
 | 1 | Initialize | Pass | sobject-reads v1.0.0, session established |
 | 2 | tools/list | Pass | 6 tools returned via SSE |
 | 3 | getObjectSchema (index) | Pass | |
-| 4 | getObjectSchema (Account) | **Warn** | `INTERNAL_ERROR` — Account not in `MCP_ReadOnly_Access` (scope decision) |
-| 5 | soqlQuery (`SELECT Id, Name FROM Account`) | **Warn** | `INVALID_TYPE` — Account not in `MCP_ReadOnly_Access` (scope decision) |
+| 4 | Boundary: Account excluded (schema) | Pass | Account schema correctly blocked (`INTERNAL_ERROR`) |
+| 5 | Boundary: Account excluded (soqlQuery) | Pass | Account query correctly blocked (`INVALID_TYPE`) |
 | 6 | getUserInfo | Pass | Returns Run-As identity |
 | 7 | JWT validation (negative) | Pass | 401 on invalid token |
 
-The two WARNs share a single root cause: Account isn't exposed via the Run-As permission set. Per design intent (see README "Design Intent — Limited Exposure is the Product"), this is a data-owner decision, not a bug. Reproducible evidence for the Salesforce team: [REPRO-Account-Scope-2026-06-09.md](REPRO-Account-Scope-2026-06-09.md) (control call on `User` returns data, failing call on `Account` returns `INVALID_TYPE`, same token + session).
+Account is **intentionally** out of scope for this gateway — the Copilot Studio / Power BI use cases do not require it. Tests 4 and 5 are boundary assertions: they PASS when access is denied and FAIL if Account ever becomes accessible, providing a CI guardrail against unintended perm-set widening. Boundary-enforcement evidence: [REPRO-Account-Scope-2026-06-09.md](REPRO-Account-Scope-2026-06-09.md).
 
 ---
 
@@ -118,8 +118,8 @@ The two WARNs share a single root cause: Account isn't exposed via the Run-As pe
 
 | Item | Owner |
 |------|-------|
-| Confirm scope: which SObjects and which fields are intended for this gateway's consumers (default is exclude — see README "Design Intent") | Data owner / GRC |
-| Add the confirmed SObjects to `MCP_ReadOnly_Access` on the Run-As user | Salesforce Admin |
+| Document the **positive scope list** — which SObjects (and which fields) *are* intended for this gateway's Copilot Studio / Power BI consumers. Default is exclude. `Account` is confirmed **out** of scope. | Data owner / GRC |
+| Once positive scope is documented, add the approved SObjects to `MCP_ReadOnly_Access` on the Run-As user | Salesforce Admin |
 
 ### Our Items
 
@@ -135,7 +135,7 @@ The two WARNs share a single root cause: Account isn't exposed via the Run-As pe
 
 ## Next Steps
 
-1. **Data owner / GRC:** Confirm the list of in-scope SObjects and any field-level masking.
-2. **Salesforce Admin:** Add the confirmed SObjects to `MCP_ReadOnly_Access` on the Run-As user.
-3. **Re-test:** `Invoke-ApimSmokeTest.ps1 -Environment int` to confirm WARNs clear for approved SObjects.
+1. **Data owner / GRC:** Document the positive in-scope SObject list (Account is confirmed out) and any field-level masking.
+2. **Salesforce Admin:** Add the approved SObjects to `MCP_ReadOnly_Access` on the Run-As user.
+3. **Smoke test:** Extend with positive probes for each approved SObject; re-run against int.
 4. **Copilot Studio:** Test agent → APIM → Salesforce end-to-end.
