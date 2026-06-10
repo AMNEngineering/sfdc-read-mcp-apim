@@ -89,48 +89,59 @@
         <set-variable name="sfMcpBaseUrl" value="{{SFDC-MCP-Base-URL}}" />
         <set-variable name="sfMcpPath" value="{{SFDC-MCP-Path}}" />
 
-        <!-- Salesforce OAuth token exchange (client_credentials) -->
-        <!-- Set ignore-error=true so we can return shaped JSON-RPC error instead of APIM default -->
-        <send-request mode="new" response-variable-name="sfTokenResponse" timeout="10" ignore-error="true">
-            <set-url>@((string)context.Variables["sfTokenUrl"])</set-url>
-            <set-method>POST</set-method>
-            <set-header name="Content-Type" exists-action="override">
-                <value>application/x-www-form-urlencoded</value>
-            </set-header>
-            <set-body>@{
-                var clientId = (string)context.Variables["sfClientId"];
-                var clientSecret = (string)context.Variables["sfClientSecret"];
-                return String.Format("grant_type=client_credentials&amp;client_id={0}&amp;client_secret={1}",
-                    Uri.EscapeDataString(clientId), Uri.EscapeDataString(clientSecret));
-            }</set-body>
-        </send-request>
+        <!-- Cache lookup: avoid a token request on every call (TTL 30 min, keyed on client_id) -->
+        <cache-lookup-value key='@("sfdc-mcp-token-" + (string)context.Variables["sfClientId"])' variable-name="sfAccessToken" />
 
-        <!-- Extract Salesforce access token, or return JSON-RPC -32603 on token failure -->
+        <!-- Only exchange token if cache miss -->
         <choose>
-            <when condition='@(((IResponse)context.Variables["sfTokenResponse"]).StatusCode != 200)'>
-                <return-response>
-                    <set-status code="200" reason="OK" />
+            <when condition='@(!context.Variables.ContainsKey("sfAccessToken") || string.IsNullOrEmpty((string)context.Variables["sfAccessToken"]))'>
+                <!-- Salesforce OAuth token exchange (client_credentials) -->
+                <!-- Set ignore-error=true so we can return shaped JSON-RPC error instead of APIM default -->
+                <send-request mode="new" response-variable-name="sfTokenResponse" timeout="10" ignore-error="true">
+                    <set-url>@((string)context.Variables["sfTokenUrl"])</set-url>
+                    <set-method>POST</set-method>
                     <set-header name="Content-Type" exists-action="override">
-                        <value>application/json</value>
-                    </set-header>
-                    <set-header name="x-correlation-id" exists-action="override">
-                        <value>@((string)context.Variables["correlationId"])</value>
+                        <value>application/x-www-form-urlencoded</value>
                     </set-header>
                     <set-body>@{
-                        return new JObject(
-                            new JProperty("jsonrpc", "2.0"),
-                            new JProperty("id", context.Variables["mcpId"]),
-                            new JProperty("error", new JObject(
-                                new JProperty("code", -32603),
-                                new JProperty("message", "Internal error"),
-                                new JProperty("data", "Salesforce token exchange failed. x-correlation-id: " + (string)context.Variables["correlationId"])
-                            ))
-                        ).ToString();
+                        var clientId = (string)context.Variables["sfClientId"];
+                        var clientSecret = (string)context.Variables["sfClientSecret"];
+                        return String.Format("grant_type=client_credentials&amp;client_id={0}&amp;client_secret={1}",
+                            Uri.EscapeDataString(clientId), Uri.EscapeDataString(clientSecret));
                     }</set-body>
-                </return-response>
+                </send-request>
+
+                <!-- Token failure: return JSON-RPC -32603 -->
+                <choose>
+                    <when condition='@(((IResponse)context.Variables["sfTokenResponse"]).StatusCode != 200)'>
+                        <return-response>
+                            <set-status code="200" reason="OK" />
+                            <set-header name="Content-Type" exists-action="override">
+                                <value>application/json</value>
+                            </set-header>
+                            <set-header name="x-correlation-id" exists-action="override">
+                                <value>@((string)context.Variables["correlationId"])</value>
+                            </set-header>
+                            <set-body>@{
+                                return new JObject(
+                                    new JProperty("jsonrpc", "2.0"),
+                                    new JProperty("id", context.Variables["mcpId"]),
+                                    new JProperty("error", new JObject(
+                                        new JProperty("code", -32603),
+                                        new JProperty("message", "Internal error"),
+                                        new JProperty("data", "Salesforce token exchange failed. x-correlation-id: " + (string)context.Variables["correlationId"])
+                                    ))
+                                ).ToString();
+                            }</set-body>
+                        </return-response>
+                    </when>
+                </choose>
+
+                <!-- Store token in cache for 30 minutes -->
+                <set-variable name="sfAccessToken" value='@(((IResponse)context.Variables["sfTokenResponse"]).Body.As&lt;JObject&gt;()["access_token"].ToString())' />
+                <cache-store-value key='@("sfdc-mcp-token-" + (string)context.Variables["sfClientId"])' value='@((string)context.Variables["sfAccessToken"])' duration="1800" />
             </when>
         </choose>
-        <set-variable name="sfAccessToken" value='@(((IResponse)context.Variables["sfTokenResponse"]).Body.As&lt;JObject&gt;()["access_token"].ToString())' />
 
         <!-- Route to Salesforce MCP endpoint (api.salesforce.com, not instance_url) -->
         <set-backend-service base-url='@((string)context.Variables["sfMcpBaseUrl"] + (string)context.Variables["sfMcpPath"])' />
