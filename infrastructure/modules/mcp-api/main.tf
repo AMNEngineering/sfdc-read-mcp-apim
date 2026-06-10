@@ -57,16 +57,129 @@ resource "azurerm_api_management_api_operation" "health_check" {
   }
 }
 
-# Single wildcard operation for MCP JSON-RPC
-resource "azurerm_api_management_api_operation" "mcp_invoke" {
-  operation_id        = "invoke-mcp"
+# MCP streamable HTTP endpoint (native MCP shape)
+resource "azurerm_api_management_api_operation" "mcp_post" {
+  operation_id        = "mcp-post"
   api_name            = azurerm_api_management_api.this.name
   api_management_name = var.apim_name
   resource_group_name = var.resource_group
-  display_name        = "Invoke MCP"
+  display_name        = "MCP POST"
+  method              = "POST"
+  url_template        = "/mcp"
+  description         = "MCP streamable HTTP POST endpoint"
+
+  response {
+    status_code = 200
+    description = "Success"
+    representation {
+      content_type = "application/json"
+    }
+    representation {
+      content_type = "text/event-stream"
+    }
+  }
+
+  response {
+    status_code = 202
+    description = "Accepted"
+  }
+
+  response {
+    status_code = 401
+    description = "Unauthorized"
+  }
+
+  response {
+    status_code = 429
+    description = "Too Many Requests"
+  }
+
+  response {
+    status_code = 500
+    description = "Internal Server Error"
+  }
+}
+
+resource "azurerm_api_management_api_operation" "mcp_get" {
+  operation_id        = "mcp-get"
+  api_name            = azurerm_api_management_api.this.name
+  api_management_name = var.apim_name
+  resource_group_name = var.resource_group
+  display_name        = "MCP GET"
+  method              = "GET"
+  url_template        = "/mcp"
+  description         = "MCP streamable HTTP GET endpoint"
+
+  response {
+    status_code = 200
+    description = "Success"
+    representation {
+      content_type = "text/event-stream"
+    }
+  }
+
+  response {
+    status_code = 401
+    description = "Unauthorized"
+  }
+
+  response {
+    status_code = 429
+    description = "Too Many Requests"
+  }
+
+  response {
+    status_code = 500
+    description = "Internal Server Error"
+  }
+}
+
+resource "azurerm_api_management_api_operation" "mcp_delete" {
+  operation_id        = "mcp-delete"
+  api_name            = azurerm_api_management_api.this.name
+  api_management_name = var.apim_name
+  resource_group_name = var.resource_group
+  display_name        = "MCP DELETE"
+  method              = "DELETE"
+  url_template        = "/mcp"
+  description         = "MCP streamable HTTP session termination"
+
+  response {
+    status_code = 200
+    description = "Success"
+  }
+
+  response {
+    status_code = 204
+    description = "No Content"
+  }
+
+  response {
+    status_code = 401
+    description = "Unauthorized"
+  }
+
+  response {
+    status_code = 429
+    description = "Too Many Requests"
+  }
+
+  response {
+    status_code = 500
+    description = "Internal Server Error"
+  }
+}
+
+# Legacy endpoint for backward compatibility (existing clients)
+resource "azurerm_api_management_api_operation" "mcp_invoke_legacy" {
+  operation_id        = "invoke-mcp-legacy"
+  api_name            = azurerm_api_management_api.this.name
+  api_management_name = var.apim_name
+  resource_group_name = var.resource_group
+  display_name        = "Invoke MCP (Legacy)"
   method              = "POST"
   url_template        = "/"
-  description         = "MCP JSON-RPC 2.0 endpoint (initialize, tools/list, tools/call)"
+  description         = "MCP JSON-RPC 2.0 endpoint for backward compatibility (initialize, tools/list, tools/call)"
 
   response {
     status_code = 200
