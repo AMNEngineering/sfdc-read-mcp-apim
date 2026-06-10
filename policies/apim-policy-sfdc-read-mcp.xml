@@ -35,11 +35,12 @@
             <value>@((string)context.Variables["correlationId"])</value>
         </set-header>
 
-        <!-- Parse MCP request so lifecycle notifications can be handled inline -->
-        <set-variable name="requestBody" value="@(context.Request.Body.As&lt;JObject&gt;(preserveContent: true))" />
+        <!-- Parse MCP request for protocol-aware handling on POST endpoints -->
+        <set-variable name="requestBody" value='@(context.Request.Method == "POST" ? context.Request.Body.As&lt;JObject&gt;(preserveContent: true) : new JObject())' />
         <set-variable name="mcpMethod" value='@(((JObject)context.Variables["requestBody"])["method"]?.ToString())' />
+        <set-variable name="mcpId" value='@(((JObject)context.Variables["requestBody"])["id"])' />
 
-        <!-- Handle notifications/initialized directly (no backend call expected) -->
+        <!-- Handle notifications and reject unsupported JSON-RPC methods in APIM -->
         <choose>
             <when condition='@(((string)context.Variables["mcpMethod"]) == "notifications/initialized")'>
                 <return-response>
@@ -47,6 +48,36 @@
                     <set-header name="x-correlation-id" exists-action="override">
                         <value>@((string)context.Variables["correlationId"])</value>
                     </set-header>
+                </return-response>
+            </when>
+            <when condition='@(
+                context.Request.Method == "POST"
+                &amp;&amp; !string.IsNullOrEmpty((string)context.Variables["mcpMethod"])
+                &amp;&amp; (string)context.Variables["mcpMethod"] != "initialize"
+                &amp;&amp; (string)context.Variables["mcpMethod"] != "tools/list"
+                &amp;&amp; (string)context.Variables["mcpMethod"] != "tools/call"
+                &amp;&amp; (string)context.Variables["mcpMethod"] != "notifications/initialized"
+            )'>
+                <return-response>
+                    <set-status code="200" reason="OK" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-header name="x-correlation-id" exists-action="override">
+                        <value>@((string)context.Variables["correlationId"])</value>
+                    </set-header>
+                    <set-body>@{
+                        var methodName = (string)context.Variables["mcpMethod"];
+                        return new JObject(
+                            new JProperty("jsonrpc", "2.0"),
+                            new JProperty("id", context.Variables["mcpId"]),
+                            new JProperty("error", new JObject(
+                                new JProperty("code", -32601),
+                                new JProperty("message", "Method not found"),
+                                new JProperty("data", "Method '" + methodName + "' is not supported")
+                            ))
+                        ).ToString();
+                    }</set-body>
                 </return-response>
             </when>
         </choose>
