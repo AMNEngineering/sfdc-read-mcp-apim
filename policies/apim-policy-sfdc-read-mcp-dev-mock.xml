@@ -13,7 +13,7 @@
         <choose>
             <when condition='@{
                 var token = context.Request.Headers.GetValueOrDefault("Authorization","").Split(Convert.ToChar(32))[1].AsJwt();
-                var roles = token?.Claims.GetValueOrDefault("roles", null);
+                var roles = token != null && token.Claims.ContainsKey("roles") ? token.Claims["roles"] : null;
                 return roles == null || !roles.Contains("MCP.Read");
             }'>
                 <return-response>
@@ -24,7 +24,10 @@
         </choose>
 
         <!-- Extract user identity for audit trail -->
-        <set-variable name="userOid" value='@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(Convert.ToChar(32))[1].AsJwt()?.Claims.GetValueOrDefault("oid", ""))' />
+        <set-variable name="userOid" value='@{
+            var token = context.Request.Headers.GetValueOrDefault("Authorization","").Split(Convert.ToChar(32))[1].AsJwt();
+            return token != null && token.Claims.ContainsKey("oid") && token.Claims["oid"] != null && token.Claims["oid"].Length &gt; 0 ? token.Claims["oid"][0] : string.Empty;
+        }' />
         <set-header name="x-apim-user-id" exists-action="override">
             <value>@((string)context.Variables["userOid"])</value>
         </set-header>
