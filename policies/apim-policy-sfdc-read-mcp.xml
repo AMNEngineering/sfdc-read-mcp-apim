@@ -35,6 +35,22 @@
             <value>@((string)context.Variables["correlationId"])</value>
         </set-header>
 
+        <!-- Parse MCP request so lifecycle notifications can be handled inline -->
+        <set-variable name="requestBody" value="@(context.Request.Body.As&lt;JObject&gt;(preserveContent: true))" />
+        <set-variable name="mcpMethod" value='@(((JObject)context.Variables["requestBody"])["method"]?.ToString())' />
+
+        <!-- Handle notifications/initialized directly (no backend call expected) -->
+        <choose>
+            <when condition='@(((string)context.Variables["mcpMethod"]) == "notifications/initialized")'>
+                <return-response>
+                    <set-status code="202" reason="Accepted" />
+                    <set-header name="x-correlation-id" exists-action="override">
+                        <value>@((string)context.Variables["correlationId"])</value>
+                    </set-header>
+                </return-response>
+            </when>
+        </choose>
+
         <!-- Resolve named values into context variables for Salesforce OAuth -->
         <set-variable name="sfClientId" value="{{SFDC-MCP-Client-ID}}" />
         <set-variable name="sfClientSecret" value="{{SFDC-MCP-Client-Secret}}" />
