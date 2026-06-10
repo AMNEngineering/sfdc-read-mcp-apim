@@ -12,9 +12,9 @@
         <!-- Verify user has MCP.Read app role -->
         <choose>
             <when condition="@{
-                var token = context.Request.Headers.GetValueOrDefault("Authorization","").Split(' ')[1].AsJwt();
-                var roles = token?.Claims.GetValueOrDefault("roles", null);
-                return roles == null || !roles.Contains("MCP.Read");
+                var token = context.Request.Headers.GetValueOrDefault(&quot;Authorization&quot;,&quot;&quot;).Split(' ')[1].AsJwt();
+                var roles = token?.Claims.GetValueOrDefault(&quot;roles&quot;, null);
+                return roles == null || !roles.Contains(&quot;MCP.Read&quot;);
             }">
                 <return-response>
                     <set-status code="403" reason="Forbidden" />
@@ -24,46 +24,46 @@
         </choose>
 
         <!-- Extract user identity for audit trail -->
-        <set-variable name="userOid" value="@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(' ')[1].AsJwt()?.Claims.GetValueOrDefault("oid", ""))" />
+        <set-variable name="userOid" value="@(context.Request.Headers.GetValueOrDefault(&quot;Authorization&quot;,&quot;&quot;).Split(' ')[1].AsJwt()?.Claims.GetValueOrDefault(&quot;oid&quot;, &quot;&quot;))" />
         <set-header name="x-apim-user-id" exists-action="override">
-            <value>@((string)context.Variables["userOid"])</value>
+            <value>@((string)context.Variables[&quot;userOid&quot;])</value>
         </set-header>
 
         <!-- Correlation ID for tracing -->
-        <set-variable name="correlationId" value="@(context.Request.Headers.GetValueOrDefault("x-correlation-id", Guid.NewGuid().ToString()))" />
+        <set-variable name="correlationId" value="@(context.Request.Headers.GetValueOrDefault(&quot;x-correlation-id&quot;, Guid.NewGuid().ToString()))" />
         <set-header name="x-correlation-id" exists-action="override">
-            <value>@((string)context.Variables["correlationId"])</value>
+            <value>@((string)context.Variables[&quot;correlationId&quot;])</value>
         </set-header>
 
         <!-- Parse incoming MCP request -->
-        <set-variable name="requestBody" value="@(context.Request.Body.As<JObject>(preserveContent: true))" />
-        <set-variable name="mcpMethod" value="@(((JObject)context.Variables["requestBody"])["method"]?.ToString())" />
-        <set-variable name="mcpId" value="@(((JObject)context.Variables["requestBody"])["id"])" />
+        <set-variable name="requestBody" value="@(context.Request.Body.As&lt;JObject&gt;(preserveContent: true))" />
+        <set-variable name="mcpMethod" value="@(((JObject)context.Variables[&quot;requestBody&quot;])[&quot;method&quot;]?.ToString())" />
+        <set-variable name="mcpId" value="@(((JObject)context.Variables[&quot;requestBody&quot;])[&quot;id&quot;])" />
 
         <!-- Return mock responses for all MCP methods -->
         <choose>
             <!-- Initialize -->
-            <when condition="@(((string)context.Variables["mcpMethod"]) == "initialize")">
+            <when condition="@(((string)context.Variables[&quot;mcpMethod&quot;]) == &quot;initialize&quot;)">
                 <return-response>
                     <set-status code="200" reason="OK" />
                     <set-header name="Content-Type" exists-action="override">
                         <value>application/json</value>
                     </set-header>
                     <set-header name="x-correlation-id" exists-action="override">
-                        <value>@((string)context.Variables["correlationId"])</value>
+                        <value>@((string)context.Variables[&quot;correlationId&quot;])</value>
                     </set-header>
                     <set-body>@{
                         return new JObject(
-                            new JProperty("jsonrpc", "2.0"),
-                            new JProperty("id", context.Variables["mcpId"]),
-                            new JProperty("result", new JObject(
-                                new JProperty("protocolVersion", "2024-11-05"),
-                                new JProperty("capabilities", new JObject(
-                                    new JProperty("tools", new JObject())
+                            new JProperty(&quot;jsonrpc&quot;, &quot;2.0&quot;),
+                            new JProperty(&quot;id&quot;, context.Variables[&quot;mcpId&quot;]),
+                            new JProperty(&quot;result&quot;, new JObject(
+                                new JProperty(&quot;protocolVersion&quot;, &quot;2024-11-05&quot;),
+                                new JProperty(&quot;capabilities&quot;, new JObject(
+                                    new JProperty(&quot;tools&quot;, new JObject())
                                 )),
-                                new JProperty("serverInfo", new JObject(
-                                    new JProperty("name", "sobject-reads"),
-                                    new JProperty("version", "1.0.0")
+                                new JProperty(&quot;serverInfo&quot;, new JObject(
+                                    new JProperty(&quot;name&quot;, &quot;sobject-reads&quot;),
+                                    new JProperty(&quot;version&quot;, &quot;1.0.0&quot;)
                                 ))
                             ))
                         ).ToString();
