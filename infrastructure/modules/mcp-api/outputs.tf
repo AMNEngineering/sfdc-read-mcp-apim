@@ -19,6 +19,21 @@ output "api_url" {
 }
 
 output "operation_id" {
-  description = "MCP operation ID"
-  value       = azurerm_api_management_api_operation.mcp_invoke.operation_id
+  description = "MCP POST operation ID"
+  value       = azurerm_api_management_api_operation.mcp_post.operation_id
+}
+
+output "mcp_get_operation_id" {
+  description = "MCP GET operation ID"
+  value       = azurerm_api_management_api_operation.mcp_get.operation_id
+}
+
+output "mcp_delete_operation_id" {
+  description = "MCP DELETE operation ID"
+  value       = azurerm_api_management_api_operation.mcp_delete.operation_id
+}
+
+output "legacy_operation_id" {
+  description = "Legacy MCP POST operation ID (backward compatibility)"
+  value       = azurerm_api_management_api_operation.mcp_invoke_legacy.operation_id
 }
