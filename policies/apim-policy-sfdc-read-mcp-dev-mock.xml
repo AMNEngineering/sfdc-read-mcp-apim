@@ -171,7 +171,7 @@
             <!-- Tools Call - getSobjectSchema -->
             <when condition='@(((string)context.Variables["mcpMethod"]) == "tools/call")'>
                 <set-variable name="toolName" value='@(((JObject)context.Variables["requestBody"])["params"]?["name"]?.ToString())' />
-                <set-variable name="toolArgs" value='@(((JObject)context.Variables["requestBody"])["params"]?["arguments"])' />
+                <set-variable name="toolArgs" value='@(((JObject)context.Variables["requestBody"])["params"]?["arguments"]?.ToString() ?? "{}")' />
                 <choose>
                     <when condition='@(((string)context.Variables["toolName"]) == "getObjectSchema")'>
                         <return-response>
@@ -183,7 +183,7 @@
                                 <value>@((string)context.Variables["correlationId"])</value>
                             </set-header>
                             <set-body>@{
-                                var args = (JObject)context.Variables["toolArgs"];
+                                var args = JObject.Parse((string)context.Variables["toolArgs"]);
                                 var objectName = args?["objects"]?.ToString();
                                 if (!string.IsNullOrEmpty(objectName) &amp;&amp; objectName.ToUpper() == "ACCOUNT") {
                                     return new JObject(
@@ -227,7 +227,7 @@
                                 <value>@((string)context.Variables["correlationId"])</value>
                             </set-header>
                             <set-body>@{
-                                var args = (JObject)context.Variables["toolArgs"];
+                                var args = JObject.Parse((string)context.Variables["toolArgs"]);
                                 var queryText = args?["q"]?.ToString() ?? string.Empty;
                                 if (queryText.ToUpper().Contains("FROM ACCOUNT")) {
                                     return new JObject(
