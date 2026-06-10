@@ -170,8 +170,8 @@
 
             <!-- Tools Call - getSobjectSchema -->
             <when condition='@(((string)context.Variables["mcpMethod"]) == "tools/call")'>
-                <set-variable name="toolName" value='@(((JObject)context.Variables["requestBody"])["params"]?["name"]?.ToString())' />
-                <set-variable name="toolArgs" value='@(((JObject)context.Variables["requestBody"])["params"]?["arguments"]?.ToString() ?? "{}")' />
+                <set-variable name="toolName" value='@(((JObject)context.Variables["requestBody"]).SelectToken("params.name") == null ? string.Empty : ((JObject)context.Variables["requestBody"]).SelectToken("params.name").ToString())' />
+                <set-variable name="toolArgs" value='@(((JObject)context.Variables["requestBody"]).SelectToken("params.arguments") == null ? "{}" : ((JObject)context.Variables["requestBody"]).SelectToken("params.arguments").ToString())' />
                 <choose>
                     <when condition='@(((string)context.Variables["toolName"]) == "getObjectSchema")'>
                         <return-response>
