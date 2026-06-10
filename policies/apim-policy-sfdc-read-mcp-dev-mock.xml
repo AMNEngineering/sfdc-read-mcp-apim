@@ -185,7 +185,7 @@
                             <set-body>@{
                                 var args = (JObject)context.Variables["toolArgs"];
                                 var objectName = args?["objects"]?.ToString();
-                                if (!string.IsNullOrEmpty(objectName) &amp;&amp; objectName.Equals("Account", StringComparison.OrdinalIgnoreCase)) {
+                                if (!string.IsNullOrEmpty(objectName) &amp;&amp; objectName.ToUpper() == "ACCOUNT") {
                                     return new JObject(
                                         new JProperty("jsonrpc", "2.0"),
                                         new JProperty("id", context.Variables["mcpId"]),
@@ -229,7 +229,7 @@
                             <set-body>@{
                                 var args = (JObject)context.Variables["toolArgs"];
                                 var queryText = args?["q"]?.ToString() ?? string.Empty;
-                                if (queryText.IndexOf("FROM Account", StringComparison.OrdinalIgnoreCase) >= 0) {
+                                if (queryText.ToUpper().Contains("FROM ACCOUNT")) {
                                     return new JObject(
                                         new JProperty("jsonrpc", "2.0"),
                                         new JProperty("id", context.Variables["mcpId"]),
