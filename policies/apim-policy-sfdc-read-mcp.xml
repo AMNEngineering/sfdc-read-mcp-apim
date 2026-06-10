@@ -12,7 +12,7 @@
         <!-- Verify user has MCP.Read app role -->
         <choose>
             <when condition='@{
-                var token = context.Request.Headers.GetValueOrDefault("Authorization","").Split(" ")[1].AsJwt();
+                var token = context.Request.Headers.GetValueOrDefault("Authorization","").Split(Convert.ToChar(32))[1].AsJwt();
                 var roles = token?.Claims.GetValueOrDefault("roles", null);
                 return roles == null || !roles.Contains("MCP.Read");
             }'>
@@ -24,7 +24,7 @@
         </choose>
 
         <!-- Extract user identity for audit trail -->
-        <set-variable name="userOid" value='@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(" ")[1].AsJwt()?.Claims.GetValueOrDefault("oid", ""))' />
+        <set-variable name="userOid" value='@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(Convert.ToChar(32))[1].AsJwt()?.Claims.GetValueOrDefault("oid", ""))' />
         <set-header name="x-apim-user-id" exists-action="override">
             <value>@((string)context.Variables["userOid"])</value>
         </set-header>
