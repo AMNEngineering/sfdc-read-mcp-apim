@@ -11,11 +11,11 @@
 
         <!-- Verify user has MCP.Read app role -->
         <choose>
-            <when condition="@{
-                var token = context.Request.Headers.GetValueOrDefault("Authorization","").Split(' ')[1].AsJwt();
+            <when condition='@{
+                var token = context.Request.Headers.GetValueOrDefault("Authorization","").Split(" ")[1].AsJwt();
                 var roles = token?.Claims.GetValueOrDefault("roles", null);
                 return roles == null || !roles.Contains("MCP.Read");
-            }">
+            }'>
                 <return-response>
                     <set-status code="403" reason="Forbidden" />
                     <set-body>{"error": "User does not have MCP.Read role"}</set-body>
@@ -24,26 +24,26 @@
         </choose>
 
         <!-- Extract user identity for audit trail -->
-        <set-variable name="userOid" value="@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(' ')[1].AsJwt()?.Claims.GetValueOrDefault("oid", ""))" />
+        <set-variable name="userOid" value='@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(" ")[1].AsJwt()?.Claims.GetValueOrDefault("oid", ""))' />
         <set-header name="x-apim-user-id" exists-action="override">
             <value>@((string)context.Variables["userOid"])</value>
         </set-header>
 
         <!-- Correlation ID for tracing -->
-        <set-variable name="correlationId" value="@(context.Request.Headers.GetValueOrDefault("x-correlation-id", Guid.NewGuid().ToString()))" />
+        <set-variable name="correlationId" value='@(context.Request.Headers.GetValueOrDefault("x-correlation-id", Guid.NewGuid().ToString()))' />
         <set-header name="x-correlation-id" exists-action="override">
             <value>@((string)context.Variables["correlationId"])</value>
         </set-header>
 
         <!-- Parse incoming MCP request -->
-        <set-variable name="requestBody" value="@(context.Request.Body.As<JObject>(preserveContent: true))" />
-        <set-variable name="mcpMethod" value="@(((JObject)context.Variables["requestBody"])["method"]?.ToString())" />
-        <set-variable name="mcpId" value="@(((JObject)context.Variables["requestBody"])["id"])" />
+        <set-variable name="requestBody" value="@(context.Request.Body.As&lt;JObject&gt;(preserveContent: true))" />
+        <set-variable name="mcpMethod" value='@(((JObject)context.Variables["requestBody"])["method"]?.ToString())' />
+        <set-variable name="mcpId" value='@(((JObject)context.Variables["requestBody"])["id"])' />
 
         <!-- Return mock responses for all MCP methods -->
         <choose>
             <!-- Initialize -->
-            <when condition="@(((string)context.Variables["mcpMethod"]) == "initialize")">
+            <when condition='@(((string)context.Variables["mcpMethod"]) == "initialize")'>
                 <return-response>
                     <set-status code="200" reason="OK" />
                     <set-header name="Content-Type" exists-action="override">
@@ -72,7 +72,7 @@
             </when>
 
             <!-- Tools List -->
-            <when condition="@(((string)context.Variables["mcpMethod"]) == "tools/list")">
+            <when condition='@(((string)context.Variables["mcpMethod"]) == "tools/list")'>
                 <return-response>
                     <set-status code="200" reason="OK" />
                     <set-header name="Content-Type" exists-action="override">
@@ -169,10 +169,10 @@
             </when>
 
             <!-- Tools Call - getSobjectSchema -->
-            <when condition="@(((string)context.Variables["mcpMethod"]) == "tools/call")">
-                <set-variable name="toolName" value="@(((JObject)context.Variables["requestBody"])["params"]?["name"]?.ToString())" />
+            <when condition='@(((string)context.Variables["mcpMethod"]) == "tools/call")'>
+                <set-variable name="toolName" value='@(((JObject)context.Variables["requestBody"])["params"]?["name"]?.ToString())' />
                 <choose>
-                    <when condition="@(((string)context.Variables["toolName"]) == "getSobjectSchema")">
+                    <when condition='@(((string)context.Variables["toolName"]) == "getSobjectSchema")'>
                         <return-response>
                             <set-status code="200" reason="OK" />
                             <set-header name="Content-Type" exists-action="override">
@@ -199,7 +199,7 @@
                             }</set-body>
                         </return-response>
                     </when>
-                    <when condition="@(((string)context.Variables["toolName"]) == "soqlQuery")">
+                    <when condition='@(((string)context.Variables["toolName"]) == "soqlQuery")'>
                         <return-response>
                             <set-status code="200" reason="OK" />
                             <set-header name="Content-Type" exists-action="override">
@@ -226,7 +226,7 @@
                             }</set-body>
                         </return-response>
                     </when>
-                    <when condition="@(((string)context.Variables["toolName"]) == "getUserIdentity")">
+                    <when condition='@(((string)context.Variables["toolName"]) == "getUserIdentity")'>
                         <return-response>
                             <set-status code="200" reason="OK" />
                             <set-header name="Content-Type" exists-action="override">
@@ -286,7 +286,7 @@
             </when>
 
             <!-- Notifications (no response needed) -->
-            <when condition="@(((string)context.Variables["mcpMethod"]) == "notifications/initialized")">
+            <when condition='@(((string)context.Variables["mcpMethod"]) == "notifications/initialized")'>
                 <return-response>
                     <set-status code="204" reason="No Content" />
                     <set-header name="x-correlation-id" exists-action="override">

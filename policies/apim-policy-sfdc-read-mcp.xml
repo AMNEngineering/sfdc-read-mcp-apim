@@ -11,11 +11,11 @@
 
         <!-- Verify user has MCP.Read app role -->
         <choose>
-            <when condition="@{
-                var token = context.Request.Headers.GetValueOrDefault("Authorization","").Split(' ')[1].AsJwt();
+            <when condition='@{
+                var token = context.Request.Headers.GetValueOrDefault("Authorization","").Split(" ")[1].AsJwt();
                 var roles = token?.Claims.GetValueOrDefault("roles", null);
                 return roles == null || !roles.Contains("MCP.Read");
-            }">
+            }'>
                 <return-response>
                     <set-status code="403" reason="Forbidden" />
                     <set-body>{"error": "User does not have MCP.Read role"}</set-body>
@@ -24,13 +24,13 @@
         </choose>
 
         <!-- Extract user identity for audit trail -->
-        <set-variable name="userOid" value="@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(' ')[1].AsJwt()?.Claims.GetValueOrDefault("oid", ""))" />
+        <set-variable name="userOid" value='@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(" ")[1].AsJwt()?.Claims.GetValueOrDefault("oid", ""))' />
         <set-header name="x-apim-user-id" exists-action="override">
             <value>@((string)context.Variables["userOid"])</value>
         </set-header>
 
         <!-- Correlation ID for tracing -->
-        <set-variable name="correlationId" value="@(context.Request.Headers.GetValueOrDefault("x-correlation-id", Guid.NewGuid().ToString()))" />
+        <set-variable name="correlationId" value='@(context.Request.Headers.GetValueOrDefault("x-correlation-id", Guid.NewGuid().ToString()))' />
         <set-header name="x-correlation-id" exists-action="override">
             <value>@((string)context.Variables["correlationId"])</value>
         </set-header>
@@ -58,10 +58,10 @@
         </send-request>
 
         <!-- Extract Salesforce access token -->
-        <set-variable name="sfAccessToken" value="@(((IResponse)context.Variables["sfTokenResponse"]).Body.As<JObject>()["access_token"].ToString())" />
+        <set-variable name="sfAccessToken" value='@(((IResponse)context.Variables["sfTokenResponse"]).Body.As&lt;JObject&gt;()["access_token"].ToString())' />
 
         <!-- Route to Salesforce MCP endpoint (api.salesforce.com, not instance_url) -->
-        <set-backend-service base-url="@((string)context.Variables["sfMcpBaseUrl"] + (string)context.Variables["sfMcpPath"])" />
+        <set-backend-service base-url='@((string)context.Variables["sfMcpBaseUrl"] + (string)context.Variables["sfMcpPath"])' />
 
         <!-- Replace inbound Entra JWT with Salesforce bearer token -->
         <set-header name="Authorization" exists-action="override">
