@@ -84,12 +84,12 @@
                     <set-body>@{
                         var tools = new JArray(
                             new JObject(
-                                new JProperty("name", "getSobjectSchema"),
+                                new JProperty("name", "getObjectSchema"),
                                 new JProperty("description", "Returns Salesforce object schema"),
                                 new JProperty("inputSchema", new JObject(
                                     new JProperty("type", "object"),
                                     new JProperty("properties", new JObject(
-                                        new JProperty("object-name", new JObject(new JProperty("type", "string")))
+                                        new JProperty("objects", new JObject(new JProperty("type", "string")))
                                     )),
                                     new JProperty("required", new JArray())
                                 )),
@@ -101,26 +101,26 @@
                                 new JProperty("inputSchema", new JObject(
                                     new JProperty("type", "object"),
                                     new JProperty("properties", new JObject(
-                                        new JProperty("query", new JObject(new JProperty("type", "string")))
+                                        new JProperty("q", new JObject(new JProperty("type", "string")))
                                     )),
-                                    new JProperty("required", new JArray("query"))
+                                    new JProperty("required", new JArray("q"))
                                 )),
                                 new JProperty("annotations", new JObject(new JProperty("readOnlyHint", true)))
                             ),
                             new JObject(
-                                new JProperty("name", "soslSearch"),
+                                new JProperty("name", "find"),
                                 new JProperty("description", "Runs a SOSL text search"),
                                 new JProperty("inputSchema", new JObject(
                                     new JProperty("type", "object"),
                                     new JProperty("properties", new JObject(
-                                        new JProperty("search", new JObject(new JProperty("type", "string")))
+                                        new JProperty("s", new JObject(new JProperty("type", "string")))
                                     )),
-                                    new JProperty("required", new JArray("search"))
+                                    new JProperty("required", new JArray("s"))
                                 )),
                                 new JProperty("annotations", new JObject(new JProperty("readOnlyHint", true)))
                             ),
                             new JObject(
-                                new JProperty("name", "getUserIdentity"),
+                                new JProperty("name", "getUserInfo"),
                                 new JProperty("description", "Returns identity for the authenticated user"),
                                 new JProperty("inputSchema", new JObject(
                                     new JProperty("type", "object"),
@@ -130,14 +130,14 @@
                                 new JProperty("annotations", new JObject(new JProperty("readOnlyHint", true)))
                             ),
                             new JObject(
-                                new JProperty("name", "getRecentItems"),
+                                new JProperty("name", "listRecentSobjectRecords"),
                                 new JProperty("description", "Retrieves recently viewed records"),
                                 new JProperty("inputSchema", new JObject(
                                     new JProperty("type", "object"),
                                     new JProperty("properties", new JObject(
-                                        new JProperty("sobject-name", new JObject(new JProperty("type", "string")))
+                                        new JProperty("sobject", new JObject(new JProperty("type", "string")))
                                     )),
-                                    new JProperty("required", new JArray("sobject-name"))
+                                    new JProperty("required", new JArray("sobject"))
                                 )),
                                 new JProperty("annotations", new JObject(new JProperty("readOnlyHint", true)))
                             ),
@@ -147,11 +147,11 @@
                                 new JProperty("inputSchema", new JObject(
                                     new JProperty("type", "object"),
                                     new JProperty("properties", new JObject(
-                                        new JProperty("sobject-name", new JObject(new JProperty("type", "string"))),
+                                        new JProperty("sobject", new JObject(new JProperty("type", "string"))),
                                         new JProperty("id", new JObject(new JProperty("type", "string"))),
-                                        new JProperty("relationship-path", new JObject(new JProperty("type", "string")))
+                                        new JProperty("relationship", new JObject(new JProperty("type", "string")))
                                     )),
-                                    new JProperty("required", new JArray("sobject-name", "id", "relationship-path"))
+                                    new JProperty("required", new JArray("sobject", "id", "relationship"))
                                 )),
                                 new JProperty("annotations", new JObject(new JProperty("readOnlyHint", true)))
                             )
@@ -171,8 +171,9 @@
             <!-- Tools Call - getSobjectSchema -->
             <when condition='@(((string)context.Variables["mcpMethod"]) == "tools/call")'>
                 <set-variable name="toolName" value='@(((JObject)context.Variables["requestBody"])["params"]?["name"]?.ToString())' />
+                <set-variable name="toolArgs" value='@(((JObject)context.Variables["requestBody"])["params"]?["arguments"] as JObject)' />
                 <choose>
-                    <when condition='@(((string)context.Variables["toolName"]) == "getSobjectSchema")'>
+                    <when condition='@(((string)context.Variables["toolName"]) == "getObjectSchema")'>
                         <return-response>
                             <set-status code="200" reason="OK" />
                             <set-header name="Content-Type" exists-action="override">
@@ -182,6 +183,23 @@
                                 <value>@((string)context.Variables["correlationId"])</value>
                             </set-header>
                             <set-body>@{
+                                var args = (JObject)context.Variables["toolArgs"];
+                                var objectName = args?["objects"]?.ToString();
+                                if (!string.IsNullOrEmpty(objectName) &amp;&amp; objectName.Equals("Account", StringComparison.OrdinalIgnoreCase)) {
+                                    return new JObject(
+                                        new JProperty("jsonrpc", "2.0"),
+                                        new JProperty("id", context.Variables["mcpId"]),
+                                        new JProperty("result", new JObject(
+                                            new JProperty("content", new JArray(
+                                                new JObject(
+                                                    new JProperty("type", "text"),
+                                                    new JProperty("text", "[{\"message\":\"sObject type 'Account' is not supported.\",\"errorCode\":\"INVALID_TYPE\"}]")
+                                                )
+                                            )),
+                                            new JProperty("isError", true)
+                                        ))
+                                    ).ToString();
+                                }
                                 var mockData = "[{\"name\":\"Account\",\"label\":\"Account\",\"keyPrefix\":\"001\"},{\"name\":\"Contact\",\"label\":\"Contact\",\"keyPrefix\":\"003\"},{\"name\":\"Opportunity\",\"label\":\"Opportunity\",\"keyPrefix\":\"006\"}]";
                                 return new JObject(
                                     new JProperty("jsonrpc", "2.0"),
@@ -209,6 +227,23 @@
                                 <value>@((string)context.Variables["correlationId"])</value>
                             </set-header>
                             <set-body>@{
+                                var args = (JObject)context.Variables["toolArgs"];
+                                var queryText = args?["q"]?.ToString() ?? string.Empty;
+                                if (queryText.IndexOf("FROM Account", StringComparison.OrdinalIgnoreCase) >= 0) {
+                                    return new JObject(
+                                        new JProperty("jsonrpc", "2.0"),
+                                        new JProperty("id", context.Variables["mcpId"]),
+                                        new JProperty("result", new JObject(
+                                            new JProperty("content", new JArray(
+                                                new JObject(
+                                                    new JProperty("type", "text"),
+                                                    new JProperty("text", "[{\"message\":\"sObject type 'Account' is not supported.\",\"errorCode\":\"INVALID_TYPE\"}]")
+                                                )
+                                            )),
+                                            new JProperty("isError", true)
+                                        ))
+                                    ).ToString();
+                                }
                                 var mockRecords = "[{\"Id\":\"001xx000001XyzAAA\",\"Name\":\"Acme Corp\"},{\"Id\":\"001xx000001XyzAAB\",\"Name\":\"Global Industries\"}]";
                                 return new JObject(
                                     new JProperty("jsonrpc", "2.0"),
@@ -226,7 +261,7 @@
                             }</set-body>
                         </return-response>
                     </when>
-                    <when condition='@(((string)context.Variables["toolName"]) == "getUserIdentity")'>
+                    <when condition='@(((string)context.Variables["toolName"]) == "getUserInfo")'>
                         <return-response>
                             <set-status code="200" reason="OK" />
                             <set-header name="Content-Type" exists-action="override">
@@ -246,6 +281,60 @@
                                             new JObject(
                                                 new JProperty("type", "text"),
                                                 new JProperty("text", identity)
+                                            )
+                                        )),
+                                        new JProperty("isError", false)
+                                    ))
+                                ).ToString();
+                            }</set-body>
+                        </return-response>
+                    </when>
+                    <when condition='@(((string)context.Variables["toolName"]) == "find")'>
+                        <return-response>
+                            <set-status code="200" reason="OK" />
+                            <set-header name="Content-Type" exists-action="override">
+                                <value>application/json</value>
+                            </set-header>
+                            <set-header name="x-correlation-id" exists-action="override">
+                                <value>@((string)context.Variables["correlationId"])</value>
+                            </set-header>
+                            <set-body>@{
+                                var mockFind = "[{\"attributes\":{\"type\":\"Contact\"},\"Id\":\"003xx000001XyzAAA\",\"Name\":\"Mock Contact\"}]";
+                                return new JObject(
+                                    new JProperty("jsonrpc", "2.0"),
+                                    new JProperty("id", context.Variables["mcpId"]),
+                                    new JProperty("result", new JObject(
+                                        new JProperty("content", new JArray(
+                                            new JObject(
+                                                new JProperty("type", "text"),
+                                                new JProperty("text", mockFind)
+                                            )
+                                        )),
+                                        new JProperty("isError", false)
+                                    ))
+                                ).ToString();
+                            }</set-body>
+                        </return-response>
+                    </when>
+                    <when condition='@(((string)context.Variables["toolName"]) == "listRecentSobjectRecords")'>
+                        <return-response>
+                            <set-status code="200" reason="OK" />
+                            <set-header name="Content-Type" exists-action="override">
+                                <value>application/json</value>
+                            </set-header>
+                            <set-header name="x-correlation-id" exists-action="override">
+                                <value>@((string)context.Variables["correlationId"])</value>
+                            </set-header>
+                            <set-body>@{
+                                var mockRecent = "[{\"Id\":\"003xx000001XyzAAA\",\"Name\":\"Recent Contact\"}]";
+                                return new JObject(
+                                    new JProperty("jsonrpc", "2.0"),
+                                    new JProperty("id", context.Variables["mcpId"]),
+                                    new JProperty("result", new JObject(
+                                        new JProperty("content", new JArray(
+                                            new JObject(
+                                                new JProperty("type", "text"),
+                                                new JProperty("text", mockRecent)
                                             )
                                         )),
                                         new JProperty("isError", false)
