@@ -2,7 +2,7 @@
 # Backend: Mock Salesforce MCP server (localhost)
 
 environment         = "dev"
-apim_name          = "amn-wus2-hub-apim-d02"
+apim_name           = "amn-wus2-hub-apim-d02"
 apim_resource_group = "amn-wus2-hub-rg-d01"
 
 # Mock backend (local PowerShell server)

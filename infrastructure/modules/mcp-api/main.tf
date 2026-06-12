@@ -34,7 +34,16 @@ resource "azurerm_api_management_api" "this" {
   # API type - HTTP for MCP JSON-RPC
   service_url = "" # Backend routing handled by policy
 
-  # No import, defining inline
+  # Bind OAuth2 authorization server so APIM's exported OpenAPI carries the
+  # correct authorize/token URLs and scope. Power Automate / Copilot Studio
+  # use this metadata when building custom connectors against this API.
+  dynamic "oauth2_authorization" {
+    for_each = var.oauth2_authorization_server_name != "" ? [1] : []
+    content {
+      authorization_server_name = var.oauth2_authorization_server_name
+      scope                     = var.oauth2_scope
+    }
+  }
 }
 
 # Health check endpoint (no auth required)

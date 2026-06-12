@@ -32,6 +32,12 @@ variable "sfdc_read_mcp_app_id" {
   type        = string
 }
 
+variable "sfdc_read_mcp_copilot_app_id" {
+  description = "Entra app registration ID for the Power Automate / Copilot Studio client app (e.g. SFDCRead INT MCP). Used as a second accepted audience and as the OAuth2 authorization server client_id. Empty string disables auth server creation and second-audience validation."
+  type        = string
+  default     = ""
+}
+
 # Salesforce OAuth credentials — either inline (dev) or from Key Vault (int/prod)
 variable "sfdc_client_id" {
   description = "Salesforce External Client App - Client ID (empty when using Key Vault)"
@@ -80,7 +86,7 @@ variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)
   default = {
-    project     = "sfdc-read-mcp-apim"
-    managed_by  = "terraform"
+    project    = "sfdc-read-mcp-apim"
+    managed_by = "terraform"
   }
 }

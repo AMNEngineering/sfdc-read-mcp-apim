@@ -41,3 +41,15 @@ variable "api_description" {
   type        = string
   default     = ""
 }
+
+variable "oauth2_authorization_server_name" {
+  description = "Name of the APIM OAuth2 authorization server to bind to this API. Empty string disables binding."
+  type        = string
+  default     = ""
+}
+
+variable "oauth2_scope" {
+  description = "OAuth2 scope advertised in the API's OAuth2 binding (typically api://<client-app-id>/user_impersonation)."
+  type        = string
+  default     = ""
+}
