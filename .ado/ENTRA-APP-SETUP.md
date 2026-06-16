@@ -1,6 +1,12 @@
 # Entra App Registration Setup Guide
 *SFDC Read MCP Reader - Complete Workflow*
 
+> **HISTORICAL — do not follow for new setups.**
+> This document describes the original "SFDC Read MCP Reader" app reg pattern, which has been superseded.
+> - INT canonical app reg is now `SFDCRead INT MCP` (`42971939-bc78-4c23-963e-c3e0f87e3bd1`), provisioned by [temp/Setup-SingleAppReg-Mcp.ps1](../temp/Setup-SingleAppReg-Mcp.ps1).
+> - Canonical setup runbook: [docs/onboarding/IDENTITY-BOOTSTRAP-INT.md](../docs/onboarding/IDENTITY-BOOTSTRAP-INT.md).
+> - This file is preserved for archaeology only. Do not run its scripts.
+
 ## ⚠️ Important: AD Group Sync Requirement
 
 **Before creating the Entra app registration**, Active Directory user groups must be created and synced to Entra ID.

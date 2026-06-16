@@ -65,8 +65,8 @@ For now, test APIM without the smoke test script:
    - **Grant Type**: Authorization Code with PKCE
    - **Auth URL**: `https://login.microsoftonline.com/6232c2ec-fa42-4f27-92cd-787913fba489/oauth2/v2.0/authorize`
    - **Access Token URL**: `https://login.microsoftonline.com/6232c2ec-fa42-4f27-92cd-787913fba489/oauth2/v2.0/token`
-   - **Client ID**: `6ce6ccb1-32db-40f8-97b5-bfbe700d052e` (dev) or `976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03` (int)
-   - **Scope**: `api://6ce6ccb1-32db-40f8-97b5-bfbe700d052e/user_impersonation`
+   - **Client ID**: `6ce6ccb1-32db-40f8-97b5-bfbe700d052e` (dev) or `42971939-bc78-4c23-963e-c3e0f87e3bd1` (int, "SFDCRead INT MCP")
+   - **Scope**: `api://6ce6ccb1-32db-40f8-97b5-bfbe700d052e/user_impersonation` (dev) or `api://42971939-bc78-4c23-963e-c3e0f87e3bd1/user_impersonation` (int)
    - **Redirect URI**: `https://oauth.pstmn.io/v1/callback`
 
 2. Get Access Token (will prompt for login)
@@ -140,9 +140,11 @@ Before testing Int, ensure:
 ### Test Against Int
 
 Same as dev testing, but use:
-- **Endpoint**: `https://amn-wus2-hub-apim-i02.azure-api.net/mcp/sfdc-read/int`
-- **App ID**: `976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03`
-- **Scope**: `api://976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03/user_impersonation`
+- **Endpoint**: `https://api.int.amnhealthcare.io/sfdcread/int/mcp` (Front Door route; APIM-direct still works at `https://amn-wus2-hub-apim-i02.azure-api.net/mcp/sfdc-read/int`)
+- **App ID**: `42971939-bc78-4c23-963e-c3e0f87e3bd1` ("SFDCRead INT MCP")
+- **Scope**: `api://42971939-bc78-4c23-963e-c3e0f87e3bd1/user_impersonation`
+
+> **Historical note:** The earlier "SFDC Read MCP Reader Int" app reg (`976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03`) was retired on the consolidation that collapsed APIM to a single audience. Old references in branches, scripts, or saved Postman collections should be updated.
 
 Int will return **real Salesforce data** from the sandbox org.
 

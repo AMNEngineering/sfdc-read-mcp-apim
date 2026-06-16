@@ -14,11 +14,11 @@ sfdc_mcp_path = "/platform/mcp/v1/sandbox/platform/sobject-reads"
 # Azure AD tenant (AMN Healthcare)
 tenant_id = "6232c2ec-fa42-4f27-92cd-787913fba489"
 
-# Entra app registration: SFDC Read MCP Reader Int (legacy reader app, retained as accepted audience)
-sfdc_read_mcp_app_id = "976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03"
-
-# Entra app registration: SFDCRead INT MCP (Power Automate / Copilot Studio client app)
-sfdc_read_mcp_copilot_app_id = "42971939-bc78-4c23-963e-c3e0f87e3bd1"
+# Entra app registration: SFDCRead INT MCP
+# (provisioned by temp/Setup-SingleAppReg-Mcp.ps1; identity surface documented in
+#  docs/onboarding/IDENTITY-BOOTSTRAP-INT.md). Single audience consumed by Power
+#  Automate, Copilot Studio, and the smoke-test harness.
+sfdc_read_mcp_app_id = "42971939-bc78-4c23-963e-c3e0f87e3bd1"
 
 # Salesforce credentials from Key Vault (provisioned by New-SfdcReadKeyVault.ps1)
 key_vault_name     = "amn-wus2-sfdcread-kv-i01"

@@ -46,15 +46,6 @@ module "named_values" {
       }
     },
 
-    # Second accepted audience for Power Automate / Copilot Studio clients.
-    # When empty, named value is not created and policy falls back to single-audience validation.
-    var.sfdc_read_mcp_copilot_app_id != "" ? {
-      "sfdc-read-mcp-copilot-app-id" = {
-        display_name = "SFDC-Read-MCP-Copilot-App-ID"
-        value        = var.sfdc_read_mcp_copilot_app_id
-      }
-    } : {},
-
     # Salesforce credentials: Key Vault references for int/prod, inline for dev
     var.key_vault_name != "" ? {
       "nv-sfdc-read-mcp-client-id" = {
@@ -100,7 +91,6 @@ module "backend_pool" {
 }
 
 # OAuth2 Authorization Server (for Power Automate / Copilot Studio)
-# Only deployed when a Copilot client app ID is configured for the environment.
 module "oauth2_auth_server" {
   source = "./modules/oauth2-auth-server"
 
@@ -110,7 +100,7 @@ module "oauth2_auth_server" {
   name          = "sfdc-read-mcp-${var.environment}-entra"
   display_name  = "SFDCRead MCP Entra (${var.environment})"
   tenant_id     = var.tenant_id
-  client_app_id = var.sfdc_read_mcp_copilot_app_id
+  client_app_id = var.sfdc_read_mcp_app_id
 }
 
 # MCP API Module
@@ -152,9 +142,8 @@ module "mcp_policy" {
     ? "${path.root}/../policies/apim-policy-sfdc-read-mcp-dev-mock.xml"
     : "${path.root}/../policies/apim-policy-sfdc-read-mcp.xml",
     {
-      tenant_id              = var.tenant_id
-      environment            = var.environment
-      copilot_app_id_enabled = var.sfdc_read_mcp_copilot_app_id != ""
+      tenant_id   = var.tenant_id
+      environment = var.environment
     }
   )
 

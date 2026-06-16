@@ -23,7 +23,8 @@
 - **APIM**: amn-wus2-hub-apim-i02
 - **API Path**: sfdcread/int
 - **AFD URL**: https://api.int.amnhealthcare.io/sfdcread/int
-- **App ID**: 976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03
+- **App ID**: 42971939-bc78-4c23-963e-c3e0f87e3bd1 ("SFDCRead INT MCP")
+  - Earlier "SFDC Read MCP Reader Int" reg (`976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03`) was retired on the single-audience consolidation; APIM no longer accepts that audience.
 - **Backend**: Salesforce MCP at `https://api.salesforce.com` (NOT the org's `instance_url`)
 - **Key Vault**: amn-wus2-sfdcread-kv-i01 (secrets resolving, status: Success)
 - **JWT**: Validated, Azure CLI pre-authorized
@@ -61,8 +62,8 @@
 # Health check (no auth needed)
 curl https://api.int.amnhealthcare.io/sfdcread/int/health
 
-# Smoke test (requires az login)
-.\test-harness\Invoke-ApimSmokeTest.ps1 -Environment int
+# Smoke test (requires az login; targets INT by default)
+.\test-harness\Invoke-ApimSmokeTest.ps1
 ```
 
 | Test | Status |
