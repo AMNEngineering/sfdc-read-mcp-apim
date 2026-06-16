@@ -18,10 +18,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# App IDs for the server API apps we need to access
+# App IDs for the server API apps we need to access.
+# int  = "SFDCRead INT MCP" (the canonical, post-2026-06-11 reg). The earlier
+#        "SFDC Read MCP Reader Int" (976d1c5b...) was retired by
+#        temp/Remove-LegacyReaderAppReg-Int.ps1 — do not re-add it.
 $ServerAppIds = @{
     dev = "6ce6ccb1-32db-40f8-97b5-bfbe700d052e"
-    int = "976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03"
+    int = "42971939-bc78-4c23-963e-c3e0f87e3bd1"
 }
 
 $TenantId = "6232c2ec-fa42-4f27-92cd-787913fba489"

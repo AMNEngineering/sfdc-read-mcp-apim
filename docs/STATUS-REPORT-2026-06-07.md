@@ -1,5 +1,12 @@
 # SFDCRead MCP-APIM Contract: Status Report
 
+> **HISTORICAL — point-in-time report from 2026-06-09.** Identity and APIM topology have changed since:
+> - The INT app reg `SFDC Read MCP Reader Int` (`976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03`) referenced below was **retired** during the single-audience consolidation. The canonical INT app reg is now `SFDCRead INT MCP` (`42971939-bc78-4c23-963e-c3e0f87e3bd1`).
+> - For current identity surface, see [docs/onboarding/IDENTITY-BOOTSTRAP-INT.md](onboarding/IDENTITY-BOOTSTRAP-INT.md).
+> - For current consumer setup, see [docs/onboarding/POWER-AUTOMATE-CUSTOM-CONNECTOR-INT.md](onboarding/POWER-AUTOMATE-CUSTOM-CONNECTOR-INT.md) and [docs/onboarding/COPILOT-STUDIO-MCP-SERVER-INT.md](onboarding/COPILOT-STUDIO-MCP-SERVER-INT.md).
+>
+> The rest of this document is preserved as-is for archaeology.
+
 **Date:** 2026-06-09
 **Project:** Salesforce Read-Only MCP Gateway (sobject-reads)
 **Scope:** Dev and Int environments (Prod is out of scope for this phase)

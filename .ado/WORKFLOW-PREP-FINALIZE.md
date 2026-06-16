@@ -1,6 +1,12 @@
 # Deployment Workflow: Prep → Finalize Model
 *For projects requiring AD groups and Entra app registrations*
 
+> **HISTORICAL — do not follow for new setups.**
+> The "SFDC Read MCP Reader" naming pattern referenced below is retired.
+> - Current canonical setup runbook: [docs/onboarding/IDENTITY-BOOTSTRAP-INT.md](../docs/onboarding/IDENTITY-BOOTSTRAP-INT.md).
+> - Current app reg script: [temp/Setup-SingleAppReg-Mcp.ps1](../temp/Setup-SingleAppReg-Mcp.ps1).
+> - This file is preserved for archaeology only. Do not run its scripts.
+
 ## Overview
 
 This workflow separates identity setup from infrastructure deployment, allowing parallel work and proper sequencing of dependencies with 30-minute AD sync lag.

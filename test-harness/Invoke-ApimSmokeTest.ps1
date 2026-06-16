@@ -21,21 +21,15 @@
       FAIL = something is broken (JWT, OAuth, routing, protocol) OR a
              boundary assertion was breached (an out-of-scope SObject
              became accessible — a security regression). Suite exits 1.
-.PARAMETER Environment
-    Target environment: dev, int, prod
 .PARAMETER TenantId
     Entra tenant ID (defaults to AMN Healthcare)
 .PARAMETER ClientId
     Test client app registration ID (interactive user auth)
 .EXAMPLE
-    .\Invoke-ApimSmokeTest.ps1 -Environment dev -ClientId "your-test-app-id"
+    .\Invoke-ApimSmokeTest.ps1
 #>
 
 param(
-    [Parameter(Mandatory)]
-    [ValidateSet('dev', 'int', 'prod')]
-    [string]$Environment,
-
     [string]$TenantId = "6232c2ec-fa42-4f27-92cd-787913fba489",
 
     [string]$ClientId = "",
@@ -45,19 +39,22 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Environment-specific endpoints (via Azure Front Door)
-$ApimEndpoints = @{
-    dev  = "https://api.dev.amnhealthcare.io/sfdcread/dev/mcp"
-    int  = "https://api.int.amnhealthcare.io/sfdcread/int/mcp"
-    prod = "https://api.amnhealthcare.io/sfdcread/prod/mcp"
-}
-
-# App registrations for JWT audience
-$AppIds = @{
-    dev  = "6ce6ccb1-32db-40f8-97b5-bfbe700d052e"
-    int  = "976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03"
-    prod = "TBD"
-}
+# SFDCRead INT — the only deployed environment today.
+# Add dev/prod back here when they come online.
+#
+# APIM accepts TWO audiences for INT (dual-audience design — see
+# infrastructure/environments/int.tfvars):
+#   - sfdc_read_mcp_app_id         976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03 (legacy
+#     "SFDC Read MCP Reader Int" app reg — currently has a broken appRole
+#     definition: value="User" instead of "MCP.Read", needs cleanup or repair)
+#   - sfdc_read_mcp_copilot_app_id 42971939-bc78-4c23-963e-c3e0f87e3bd1
+#     ("SFDCRead INT MCP" — Copilot Studio / Power Automate audience, correct
+#     MCP.Read role, group AZ_AMN_AAD_SfdcReadMcp_Int_User assigned to it)
+#
+# We test against the Copilot audience because that's the path real consumers
+# (Copilot Studio, Power Automate) use end-to-end.
+$ApimEndpoint = "https://api.int.amnhealthcare.io/sfdcread/int/mcp"
+$AppId        = "42971939-bc78-4c23-963e-c3e0f87e3bd1"
 
 $script:TestResults = @()
 
@@ -638,22 +635,22 @@ Write-Host "`n===============================================================" -
 Write-Host "  APIM Smoke Test - SFDC Read MCP API" -ForegroundColor Cyan
 Write-Host "===============================================================" -ForegroundColor Cyan
 
-Write-TestLog "Environment: $Environment" -Level INFO
-Write-TestLog "Endpoint: $($ApimEndpoints[$Environment])" -Level INFO
-Write-TestLog "App ID: $($AppIds[$Environment])" -Level INFO
+Write-TestLog "Environment: int" -Level INFO
+Write-TestLog "Endpoint: $ApimEndpoint" -Level INFO
+Write-TestLog "App ID: $AppId" -Level INFO
 
 # Step 1: Acquire JWT token
-$jwt = Get-EntraJwt -TenantId $TenantId -ClientId $ClientId -Scope $AppIds[$Environment]
+$jwt = Get-EntraJwt -TenantId $TenantId -ClientId $ClientId -Scope $AppId
 
 # Step 2: Run tests
 try {
-    Test-Initialize -Endpoint $ApimEndpoints[$Environment] -Token $jwt
-    $null = Test-ToolsList -Endpoint $ApimEndpoints[$Environment] -Token $jwt
-    Test-GetObjectSchemaIndex -Endpoint $ApimEndpoints[$Environment] -Token $jwt
-    Test-AccountBoundarySchema -Endpoint $ApimEndpoints[$Environment] -Token $jwt
-    Test-AccountBoundaryQuery -Endpoint $ApimEndpoints[$Environment] -Token $jwt
-    Test-GetUserInfo -Endpoint $ApimEndpoints[$Environment] -Token $jwt
-    Test-JwtValidation -Endpoint $ApimEndpoints[$Environment] -Token $jwt
+    Test-Initialize -Endpoint $ApimEndpoint -Token $jwt
+    $null = Test-ToolsList -Endpoint $ApimEndpoint -Token $jwt
+    Test-GetObjectSchemaIndex -Endpoint $ApimEndpoint -Token $jwt
+    Test-AccountBoundarySchema -Endpoint $ApimEndpoint -Token $jwt
+    Test-AccountBoundaryQuery -Endpoint $ApimEndpoint -Token $jwt
+    Test-GetUserInfo -Endpoint $ApimEndpoint -Token $jwt
+    Test-JwtValidation -Endpoint $ApimEndpoint -Token $jwt
 
     # Summary
     Write-Host "`n===============================================================" -ForegroundColor Green

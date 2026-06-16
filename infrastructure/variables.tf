@@ -28,14 +28,8 @@ variable "tenant_id" {
 }
 
 variable "sfdc_read_mcp_app_id" {
-  description = "Entra app registration ID for api://sfdc-read-mcp-reader"
+  description = "Entra app registration ID for the SFDCRead MCP API (e.g. SFDCRead INT MCP). Used as the JWT audience APIM validates and as the OAuth2 authorization server client_id consumed by Power Automate / Copilot Studio."
   type        = string
-}
-
-variable "sfdc_read_mcp_copilot_app_id" {
-  description = "Entra app registration ID for the Power Automate / Copilot Studio client app (e.g. SFDCRead INT MCP). Used as a second accepted audience and as the OAuth2 authorization server client_id. Empty string disables auth server creation and second-audience validation."
-  type        = string
-  default     = ""
 }
 
 # Salesforce OAuth credentials — either inline (dev) or from Key Vault (int/prod)

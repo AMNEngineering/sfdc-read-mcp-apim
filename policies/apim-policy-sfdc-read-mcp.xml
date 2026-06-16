@@ -2,14 +2,10 @@
     <inbound>
         <base />
 
-        <!-- Validate Entra ID JWT and require MCP.Read role.
-             Optional second audience for Power Automate / Copilot Studio client app, gated on tfvars. -->
+        <!-- Validate Entra ID JWT and require MCP.Read role. -->
         <validate-azure-ad-token tenant-id="${tenant_id}">
             <audiences>
                 <audience>api://{{SFDC-Read-MCP-App-ID}}</audience>
-%{ if copilot_app_id_enabled ~}
-                <audience>api://{{SFDC-Read-MCP-Copilot-App-ID}}</audience>
-%{ endif ~}
             </audiences>
         </validate-azure-ad-token>
 
