@@ -159,6 +159,16 @@
         <!-- Route to Salesforce MCP endpoint (api.salesforce.com, not instance_url) -->
         <set-backend-service base-url='@((string)context.Variables["sfMcpBaseUrl"] + (string)context.Variables["sfMcpPath"])' />
 
+        <!-- Strip the operation's url_template segment (e.g. /mcp on mcp-post/get/delete,
+             / on invoke-mcp-legacy) before forwarding to the SF backend. Without this,
+             APIM appends the operation segment to the base-url, producing
+             .../sobject-reads/mcp — which SF's MCP server returns 404 for.
+             The working SF endpoint per docs/SALESFORCE-REPRO-2026-06-08.md is
+             /platform/mcp/v1/sandbox/platform/sobject-reads with no trailing segment.
+             rewrite-uri template="/" overrides the request URI to "/" so the final
+             backend URL becomes <base-url>/ — SF accepts the trailing slash. -->
+        <rewrite-uri template="/" copy-unmatched-params="false" />
+
         <!-- Replace inbound Entra JWT with Salesforce bearer token -->
         <set-header name="Authorization" exists-action="override">
             <value>@("Bearer " + (string)context.Variables["sfAccessToken"])</value>
