@@ -2,10 +2,20 @@
     <inbound>
         <base />
 
-        <!-- Validate Entra ID JWT and require MCP.Read role. -->
+        <!-- Validate Entra ID JWT and require MCP.Read role.
+             Accept both audience formats:
+               - api://{guid}  — issued when a client requests "api://{guid}/.default"
+                 (typical for service-to-service / .default scope flows, including the
+                 APIM-fronted OAuth2 auth-server used by Power Automate / Copilot Studio
+                 when the connector's Resource URL is set to api://{guid}).
+               - {guid}        — issued when the client app is the same as the resource
+                 app (self-OAuth) and Entra rejects api://{guid} with AADSTS90009, so
+                 the Power Platform connector's Resource URL is configured as the bare
+                 GUID. Entra then mints tokens with aud={guid} (no api:// prefix). -->
         <validate-azure-ad-token tenant-id="${tenant_id}">
             <audiences>
                 <audience>api://{{SFDC-Read-MCP-App-ID}}</audience>
+                <audience>{{SFDC-Read-MCP-App-ID}}</audience>
             </audiences>
         </validate-azure-ad-token>
 
