@@ -84,7 +84,7 @@ See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for ADO pipeline setup and usage.
 
 | Environment | APIM Instance | Backend | Access Group (Entra) | Approval Gate |
 |-------------|---------------|---------|----------------------|----------------|
-| Dev | `amn-wus2-hub-apim-d02` | Inline APIM mock | `AZ_AMN_AAD_SfdcReadMcp_Dev_User` | Manual (`dev_apply`) |
+| Dev | `amn-wus2-hub-apim-d02` | Inline APIM mock | `AZ_AMN_AAD_SfdcReadMcp_Dev_User` | Auto on push to `main` (no approval) |
 | Int | `amn-wus2-hub-apim-i02` | Salesforce Sandbox | `AZ_AMN_AAD_SfdcReadMcp_Int_User` | Manual (`int_apply`) |
 | Prod | `amn-wus2-hub-apim-p02` | Salesforce Production | `AZ_AMN_AAD_SfdcReadMcp_Prod_User` | Manual (GRC + Ops, out of scope this phase) |
 
