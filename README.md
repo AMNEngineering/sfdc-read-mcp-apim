@@ -101,6 +101,8 @@ az ad group member list --group "AZ_AMN_AAD_SfdcReadMcp_Int_User" \
 - [Architecture](docs/ARCHITECTURE.md) - Security model and data flow
 - [Deployment](docs/DEPLOYMENT.md) - Pipeline usage and troubleshooting
 - [Salesforce Setup](docs/SALESFORCE-SETUP.md) - External Client App configuration
+- [Salesforce MCP Integration Reference](docs/SALESFORCE-MCP-INTEGRATION-REFERENCE.md) - Working request/response shapes against SF's hosted MCP server; cited from the APIM policy
+- [Boundary Evidence: Account excluded](docs/BOUNDARY-EVIDENCE-ACCOUNT-EXCLUDED.md) - Audit-friendly proof the narrow-surface guarantee holds
 - [Power BI Setup](examples/power-bi-setup.md) - Client connection guide
 
 ## AI Skill (WIP)
