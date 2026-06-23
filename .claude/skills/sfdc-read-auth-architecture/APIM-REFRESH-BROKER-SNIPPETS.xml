@@ -1,0 +1,53 @@
+<!-- APIM snippet set: refresh-token broker pattern -->
+<!-- Intended as copy/paste fragments. Adjust named values and backend path per environment. -->
+
+<!-- 1) Named value hydration -->
+<set-variable name="sfTokenUrl" value="{{SFDC-MCP-Token-URL}}" />
+<set-variable name="sfClientId" value="{{SFDC-MCP-Client-ID}}" />
+<set-variable name="sfClientSecret" value="{{SFDC-MCP-Client-Secret}}" />
+<set-variable name="sfRefreshToken" value="{{SFDC-MCP-Refresh-Token}}" />
+<set-variable name="sfMcpBaseUrl" value="{{SFDC-MCP-Base-URL}}" />
+<set-variable name="sfMcpPath" value="{{SFDC-MCP-Path}}" />
+
+<!-- 2) Access token cache lookup -->
+<cache-lookup-value key="sfdc-mcp-access-token" variable-name="sfAccessToken" />
+
+<!-- 3) Refresh token exchange when cache miss -->
+<choose>
+  <when condition="@(!context.Variables.ContainsKey(&quot;sfAccessToken&quot;) || string.IsNullOrEmpty((string)context.Variables[&quot;sfAccessToken&quot;]))">
+    <send-request mode="new" response-variable-name="sfTokenResponse" timeout="15" ignore-error="false">
+      <set-url>@((string)context.Variables["sfTokenUrl"])</set-url>
+      <set-method>POST</set-method>
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/x-www-form-urlencoded</value>
+      </set-header>
+      <set-body>@{
+        return "grant_type=refresh_token"
+          + "&amp;client_id=" + Uri.EscapeDataString((string)context.Variables["sfClientId"])
+          + "&amp;client_secret=" + Uri.EscapeDataString((string)context.Variables["sfClientSecret"])
+          + "&amp;refresh_token=" + Uri.EscapeDataString((string)context.Variables["sfRefreshToken"]);
+      }</set-body>
+    </send-request>
+
+    <set-variable name="sfAccessToken" value="@(((IResponse)context.Variables[&quot;sfTokenResponse&quot;]).Body.As<JObject>()[&quot;access_token&quot;].ToString())" />
+
+    <!-- Conservative TTL; refresh proactively before true expiry -->
+    <cache-store-value key="sfdc-mcp-access-token" value="@((string)context.Variables[&quot;sfAccessToken&quot;])" duration="600" />
+  </when>
+</choose>
+
+<!-- 4) Replace inbound Authorization for Salesforce call -->
+<set-header name="Authorization" exists-action="override">
+  <value>@("Bearer " + (string)context.Variables["sfAccessToken"])</value>
+</set-header>
+
+<!-- 5) Route to Salesforce MCP backend -->
+<set-backend-service base-url="@((string)context.Variables[&quot;sfMcpBaseUrl&quot;] + (string)context.Variables[&quot;sfMcpPath&quot;])" />
+
+<!-- 6) Fail-safe error mapping example -->
+<on-error>
+  <base />
+  <set-header name="x-auth-broker" exists-action="override">
+    <value>refresh-token</value>
+  </set-header>
+</on-error>
