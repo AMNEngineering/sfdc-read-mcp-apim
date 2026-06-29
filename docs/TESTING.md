@@ -7,7 +7,7 @@ This document describes how to test the SFDC Read MCP APIM deployment across env
 ## Prerequisites
 
 - Azure CLI installed and authenticated (`az login`)
-- PowerShell 5.1+ or PowerShell Core 7+
+- PowerShell 7+
 - Access to AMN Healthcare Entra tenant
 - Network access to APIM endpoints
 
@@ -22,13 +22,15 @@ cd test-harness/mocks
 .\MockSalesforceMcpServer.ps1 -VerboseLogging
 ```
 
-The server listens on `http://localhost:8080` and implements all 6 MCP tools:
+The server listens on `http://localhost:8080` and implements 6 MCP tools:
 - `getSobjectSchema` - Returns object metadata
 - `soqlQuery` - Executes SOQL queries (returns mock data)
 - `soslSearch` - Full-text search
 - `getUserIdentity` - Current user info
 - `getRecentItems` - Recently accessed records
 - `getRelatedRecords` - Child record traversal
+
+> **Mock-vs-real divergence (known):** the mock predates Salesforce's hosted MCP coming online and uses different tool names than the real SF MCP server. The real server exposes `getObjectSchema`, `soqlQuery`, `find`, `getUserInfo`, `listRecentSobjectRecords`, `getRelatedRecords` — see [Salesforce MCP Integration Reference](SALESFORCE-MCP-INTEGRATION-REFERENCE.md). Mock alignment is a separate follow-up; the smoke test (`Invoke-ApimSmokeTest.ps1`) targets INT against real SF, so the divergence does not affect smoke testing today.
 
 ### Test Mock Server Directly
 
@@ -73,7 +75,7 @@ For now, test APIM without the smoke test script:
 
 3. Send MCP request:
    ```
-   POST https://amn-wus2-hub-apim-d02.azure-api.net/mcp/sfdc-read/dev
+   POST https://amn-wus2-hub-apim-d02.azure-api.net/sfdcread/dev/mcp
    Headers:
      Authorization: Bearer <token>
      Content-Type: application/json
@@ -86,28 +88,39 @@ For now, test APIM without the smoke test script:
 This demonstrates that JWT validation is working:
 
 ```bash
-curl -X POST https://amn-wus2-hub-apim-d02.azure-api.net/mcp/sfdc-read/dev \
+curl -X POST https://amn-wus2-hub-apim-d02.azure-api.net/sfdcread/dev/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
 Expected: `401 Unauthorized` (JWT validation working correctly)
 
-### Future: Automated Smoke Test
+### Automated Smoke Test
 
-Once we pre-authorize Azure CLI or create a dedicated test client app, run:
+The smoke test runs today against deployed INT. It needs a dedicated test client app (Azure CLI cannot acquire tokens for the API scope directly, as noted above). Provision the test client app via one of:
 
 ```powershell
 cd test-harness
-.\Invoke-ApimSmokeTest.ps1 -Environment dev
+.\New-TestClientApp.ps1         # MS Graph PowerShell SDK path
+# or
+.\New-TestClientApp-AzCli.ps1   # az ad path
 ```
 
-This will:
-- Acquire JWT token automatically
-- Test all 6 MCP tools
-- Validate JWT rejection (negative test)
-- Verify correlation ID propagation  
-- Report pass/fail summary
+Then run:
+
+```powershell
+cd test-harness
+.\Invoke-ApimSmokeTest.ps1
+```
+
+The smoke test:
+- Acquires a JWT interactively against the test client app
+- Calls through APIM to real Salesforce INT
+- Exercises in-scope SObjects (PASS = data returned)
+- Exercises boundary assertions (PASS = correctly blocked — e.g. `Account` returns `INVALID_TYPE`; FAIL = boundary breach)
+- Distinguishes WARN (wiring healthy, data-access error needs review against documented scope) from FAIL (broken wiring or boundary breach)
+
+See the script's header comment for full status semantics. Adding Dev/Prod targets is a TODO in the script itself.
 
 ## Integration Testing (Int Environment)
 
@@ -135,12 +148,12 @@ Before testing Int, ensure:
 3. **APIM Named Values Updated**
    - `nv-sfdc-read-mcp-client-id` → Salesforce Client ID
    - `nv-sfdc-read-mcp-client-secret` → Salesforce Client Secret  
-   - `nv-sfdc-read-mcp-token-url` → `https://test.salesforce.com/services/oauth2/token`
+   - `nv-sfdc-read-mcp-token-url` → `https://amnhealthcare--qa.sandbox.my.salesforce.com/services/oauth2/token` (INT — verified against `infrastructure/environments/int.tfvars`)
 
 ### Test Against Int
 
 Same as dev testing, but use:
-- **Endpoint**: `https://api.int.amnhealthcare.io/sfdcread/int/mcp` (Front Door route; APIM-direct still works at `https://amn-wus2-hub-apim-i02.azure-api.net/mcp/sfdc-read/int`)
+- **Endpoint**: `https://api.int.amnhealthcare.io/sfdcread/int/mcp` (Front Door route; APIM-direct still works at `https://amn-wus2-hub-apim-i02.azure-api.net/sfdcread/int/mcp`)
 - **App ID**: `42971939-bc78-4c23-963e-c3e0f87e3bd1` ("SFDCRead INT MCP")
 - **Scope**: `api://42971939-bc78-4c23-963e-c3e0f87e3bd1/user_impersonation`
 
