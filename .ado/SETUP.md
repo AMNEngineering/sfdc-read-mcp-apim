@@ -15,50 +15,26 @@
 
 ---
 
-## Step 1: Create Variable Groups
+## Step 1: Pipeline Configuration
 
-Run the provided script to create variable groups for each environment:
+**The pipeline does not use ADO variable groups.** Configuration lives in three places:
 
-```powershell
-.\create-variable-group.ps1 -Environment dev
-.\create-variable-group.ps1 -Environment int
-.\create-variable-group.ps1 -Environment prod
-```
+1. **Hardcoded `variables:` block** in `.ado/pipelines/deploy.yml` — service connection names, shared-services state storage accounts, vertical name. Edit the YAML to change these.
+2. **Service connection SPN credentials** — `ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID` are auto-exported from the `AzureCLI@2` task (`addSpnToEnvironment: true`). Nothing to configure beyond ensuring the service connection exists (Step 2).
+3. **APIM Named Values** (per environment) — Salesforce `client_id` / `client_secret` / token URL / MCP base URL / MCP path are stored as APIM Named Values, with the two secrets backed by Key Vault references. These are managed by Terraform (see `infrastructure/modules/apim_api/`), not by the pipeline.
 
-### Variable Group: `sfdc-read-mcp-apim-dev-vars`
+### Subscription / state storage map (informational)
 
-| Variable | Value | Secret | Source |
-|----------|-------|--------|--------|
-| `ARM_SUBSCRIPTION_ID` | `e764d23e-759d-4cd4-8b5f-27e4c703f6a8` | No | Azure |
-| `ARM_TENANT_ID` | `6232c2ec-fa42-4f27-92cd-787913fba489` | No | Azure |
-| `TF_STATE_STORAGE_ACCOUNT` | `amncowus2tfstatesad01` | No | Shared Services |
-| `TF_STATE_CONTAINER` | `tfstate` | No | Azure |
-| `APIM_NAME` | `amn-wus2-hub-apim-d02` | No | Azure |
-| `APIM_RESOURCE_GROUP` | `amn-wus2-hub-rg-d01` | No | Azure |
-| `SFDC_CLIENT_ID` | `mock-client-id` (dev only) | No | Mock |
-| `SFDC_CLIENT_SECRET` | `mock-client-secret` (dev only) | **Yes** | Mock |
-| `SFDC_READ_MCP_APP_ID` | Entra app registration ID | No | Entra |
+| Env | Subscription | State storage account | State container | State key |
+|-----|-------------|----------------------|-----------------|-----------|
+| dev | `e764d23e-759d-4cd4-8b5f-27e4c703f6a8` | `amncowus2tfstatesad01` | `sfdc-read` | `sfdc-read-dev.tfstate` |
+| int | `06ab2c80-382c-478f-bcd5-5e1afe984092` | `amncowus2tfstatesap01` | `sfdc-read` | `sfdc-read-int.tfstate` |
 
-**Note:** ARM_CLIENT_ID and ARM_CLIENT_SECRET are managed by the service connection, not in variable groups.
+The state storage accounts both live in subscription `43c5a646-c00c-4c59-a332-df854c5dd08c`, resource group `co-wus2-tfstate-rg-p01` (shared services). See Step 5.
 
-### Variable Group: `sfdc-read-mcp-apim-int-vars`
+### Legacy variable-group flow (not consumed by current pipeline)
 
-Same structure as dev, with these changes:
-- `ARM_SUBSCRIPTION_ID` → `06ab2c80-382c-478f-bcd5-5e1afe984092`
-- `TF_STATE_STORAGE_ACCOUNT` → `amncowus2tfstatesap01`
-- `SFDC_CLIENT_ID` → Salesforce Sandbox External Client App ID
-- `SFDC_CLIENT_SECRET` → Salesforce Sandbox secret (from Key Vault)
-
-### Variable Group: `sfdc-read-mcp-apim-prod-vars`
-
-Same structure as dev, with these changes:
-- `ARM_SUBSCRIPTION_ID` → Production subscription ID
-- `TF_STATE_RESOURCE_GROUP` → `co-wus2-tfstate-rg-p01`
-- `TF_STATE_STORAGE_ACCOUNT` → Storage account in co-wus2-tfstate-rg-p01
-- `APIM_NAME` → `amn-wus2-hub-apim-p02`
-- `APIM_RESOURCE_GROUP` → `amn-wus2-hub-rg-p01`
-- `SFDC_CLIENT_ID` → Salesforce Production External Client App ID
-- `SFDC_CLIENT_SECRET` → Salesforce Production secret (from Key Vault)
+`.ado/scripts/create-variable-group.ps1` and `.ado/VARIABLE-GROUP-VALUES.md` describe a variable-group approach that was planned but never wired into `deploy.yml`. They are kept for historical context; nothing the pipeline runs reads them today.
 
 ---
 
@@ -79,11 +55,9 @@ Same structure as dev, with these changes:
 **Required Permissions (verify with Ops team):**
 - APIM Contributor on APIM instances:
   - Dev: `amn-wus2-hub-apim-d02`
-  - Int: `amn-wus2-hub-apim-d02`
+  - Int: `amn-wus2-hub-apim-i02`
   - Prod: `amn-wus2-hub-apim-p02`
-- Storage Blob Data Contributor on Terraform state storage:
-  - Dev: `co-wus2-tfstate-rg-d01`
-  - Int/Prod: `co-wus2-tfstate-rg-p01`
+- Storage Blob Data Contributor on Terraform state storage account `amncowus2tfstatesad01` (lower SPN) and `amncowus2tfstatesap01` (upper SPN), both in `co-wus2-tfstate-rg-p01` under the shared-services subscription `43c5a646-c00c-4c59-a332-df854c5dd08c`.
 
 ---
 
@@ -127,28 +101,11 @@ Or manually:
 
 ---
 
-## Step 5: Terraform State Storage Setup
+## Step 5: Terraform State Storage (Already Provisioned)
 
-If not already configured, create Terraform state storage:
+State storage is shared across the AMN tenant — **nothing to bootstrap for this repo**. The pipeline initializes state against the existing shared-services storage accounts (see Step 1 table). The `sfdc-read` container is created automatically on first `terraform init` if it does not already exist.
 
-```bash
-# Variables
-RG_NAME="tfstate-rg"
-STORAGE_ACCOUNT="tfstatestorage$(date +%s | tail -c 6)"  # Must be globally unique
-CONTAINER="tfstate"
-LOCATION="westus2"
-SUBSCRIPTION_ID="<non-prod-subscription-id>"
-
-# Create resources
-az group create --name $RG_NAME --location $LOCATION --subscription $SUBSCRIPTION_ID
-az storage account create --name $STORAGE_ACCOUNT --resource-group $RG_NAME --location $LOCATION --sku Standard_LRS --subscription $SUBSCRIPTION_ID
-az storage container create --name $CONTAINER --account-name $STORAGE_ACCOUNT --subscription $SUBSCRIPTION_ID
-```
-
-Update variable groups with:
-- `TF_STATE_RESOURCE_GROUP`: `tfstate-rg`
-- `TF_STATE_STORAGE_ACCOUNT`: `<storage-account-name>`
-- `TF_STATE_CONTAINER`: `tfstate`
+Verify the SPNs behind the service connections have **Storage Blob Data Contributor** on the storage accounts listed in Step 2. If `terraform init` fails with an auth error, that role is the first thing to check.
 
 ---
 
@@ -171,26 +128,32 @@ az keyvault set-policy \
 
 ## Validation Checklist
 
-- [ ] All three variable groups created and populated
-- [ ] All three service connections created and tested
-- [ ] Production environment created with approval gate
+- [ ] Both service connections exist and have access to their target subscriptions
+- [ ] Production environment created with approval gate (when prod stages are enabled)
 - [ ] Pipeline created and linked to GitHub repo
-- [ ] Terraform state storage created and accessible
-- [ ] Service principals have APIM Contributor role
-- [ ] Service principals have access to Key Vault (if used)
-- [ ] Entra app registration created (`api://sfdc-read-mcp-reader`)
+- [ ] SPNs have **Storage Blob Data Contributor** on the shared-services state storage accounts
+- [ ] SPNs have **APIM Contributor** on the target APIM instances
+- [ ] SPNs have read access to the per-environment Key Vaults (RBAC `Key Vault Secrets User`, or equivalent access policy — see Step 6) so APIM Named Values can dereference Key Vault secrets
+- [ ] Per-environment Entra app registrations exist (one app per env; `api://{guid}` identifier URI)
 - [ ] Salesforce External Client Apps configured (int/prod)
 
 ---
 
 ## Testing the Setup
 
-### Test Dev Deployment
+### Triggering the pipeline
+
+The pipeline is **branch-triggered**, not parameterized:
+
+- **Push to `main`** → runs all stages (dev plan → dev apply → dev verify → int plan → int apply → int verify). Both apply stages have a `ManualValidation@0` gate that waits for approval before applying.
+- **PR against `main`** → runs the dev plan stage only (validation; no apply).
+
+To kick a run without a code change, use the ADO UI ("Run pipeline" on `sfdc-read-mcp-apim-deploy`) or:
+
 ```bash
-# Trigger pipeline manually
 az pipelines run \
   --name "sfdc-read-mcp-apim-deploy" \
-  --parameters environment=dev action=plan \
+  --branch main \
   --organization https://dev.azure.com/AMNEngineering \
   --project "Cloud Operations"
 ```
@@ -208,14 +171,10 @@ az pipelines run \
 
 ## Troubleshooting
 
-### Pipeline fails with "Variable group not found"
-- Ensure variable group names match exactly: `sfdc-read-mcp-apim-<env>-vars`
-- Grant pipeline access to variable groups
-
 ### Terraform init fails
-- Verify service connection has Storage Blob Data Contributor role
+- Verify service connection has Storage Blob Data Contributor role on the shared-services state storage account
 - Check state storage account and container exist
-- Verify subscription ID in variable group is correct
+- Verify the subscription ID / storage account names in `.ado/pipelines/deploy.yml` match the table in Step 1
 
 ### APIM deployment fails with permission denied
 - Verify service principal has APIM Contributor role
@@ -230,8 +189,7 @@ az pipelines run \
 ## Security Notes
 
 ⚠️ **Never commit secrets to git:**
-- Use Key Vault references in variable groups
-- Mark sensitive variables as "secret"
+- Salesforce client_id/client_secret are stored as APIM Named Values backed by Key Vault references (managed by Terraform in `infrastructure/modules/apim_api/`)
 - Rotate secrets regularly
 
 ⚠️ **Service principal least privilege:**
