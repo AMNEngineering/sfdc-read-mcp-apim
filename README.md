@@ -6,13 +6,15 @@ Azure API Management gateway for Salesforce Hosted MCP Server (sobject-reads), e
 
 ```
 Power BI / Copilot Studio
-    ↓ (Entra JWT: api://sfdc-read-mcp-reader)
-Azure APIM (d02/p02)
+    ↓ (Entra JWT: aud=api://<env-app-id> or bare <env-app-id>)
+Azure APIM (d02/i02/p02 — one app reg per env, same identifier-URI shape)
     ↓ (Salesforce OAuth: mcp_api scope)
 Salesforce Hosted MCP Server (sobject-reads)
     ↓ (user permissions enforced)
 Salesforce Org
 ```
+
+> Each environment has its own Entra app registration (e.g. INT = `SFDCRead INT MCP`, app ID `42971939-bc78-4c23-963e-c3e0f87e3bd1`). The APIM policy accepts both audience formats of that single app — `api://<app-id>` (the `.default` / api-scope flow used by Power Automate and Copilot Studio) and the bare GUID `<app-id>` (the self-OAuth flow where Entra omits the `api://` prefix). See [single-audience consolidation](policies/apim-policy-sfdc-read-mcp.xml) for the policy.
 
 ## Layered Security Model
 

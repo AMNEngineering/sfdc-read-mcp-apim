@@ -42,17 +42,21 @@ $ErrorActionPreference = "Stop"
 # SFDCRead INT — the only deployed environment today.
 # Add dev/prod back here when they come online.
 #
-# APIM accepts TWO audiences for INT (dual-audience design — see
-# infrastructure/environments/int.tfvars):
-#   - sfdc_read_mcp_app_id         976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03 (legacy
-#     "SFDC Read MCP Reader Int" app reg — currently has a broken appRole
-#     definition: value="User" instead of "MCP.Read", needs cleanup or repair)
-#   - sfdc_read_mcp_copilot_app_id 42971939-bc78-4c23-963e-c3e0f87e3bd1
-#     ("SFDCRead INT MCP" — Copilot Studio / Power Automate audience, correct
-#     MCP.Read role, group AZ_AMN_AAD_SfdcReadMcp_Int_User assigned to it)
+# The INT canonical app reg is "SFDCRead INT MCP"
+# (42971939-bc78-4c23-963e-c3e0f87e3bd1), set as `sfdc_read_mcp_app_id` in
+# infrastructure/environments/int.tfvars. The MCP.Read app role and group
+# AZ_AMN_AAD_SfdcReadMcp_Int_User are assigned to it.
 #
-# We test against the Copilot audience because that's the path real consumers
-# (Copilot Studio, Power Automate) use end-to-end.
+# APIM accepts both audience formats of this single app (see
+# policies/apim-policy-sfdc-read-mcp.xml):
+#   - api://42971939-...  — the .default / api-scope flow used by Power
+#     Automate and Copilot Studio
+#   - 42971939-...        — the bare GUID issued by Entra in self-OAuth
+#     (client app == resource app), where Entra rejects the api:// form
+#
+# The earlier "SFDC Read MCP Reader Int" app reg
+# (976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03) was retired by the single-audience
+# consolidation. Do not re-add it.
 $ApimEndpoint = "https://api.int.amnhealthcare.io/sfdcread/int/mcp"
 $AppId        = "42971939-bc78-4c23-963e-c3e0f87e3bd1"
 
