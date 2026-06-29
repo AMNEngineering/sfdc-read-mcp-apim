@@ -277,9 +277,9 @@ Returns `{"value": true}` if the user is a member. Membership changes can take m
 APIM publishes the OAuth2 metadata that Power Automate and Copilot Studio consume when fetching connector swagger / MCP descriptors. This is provisioned by Terraform, not by hand.
 
 1. Module: `infrastructure/modules/oauth2-auth-server/`
-2. Wiring: `infrastructure/main.tf` calls the module conditionally on `var.sfdc_read_mcp_copilot_app_id != ""`.
-3. Per-env input: `infrastructure/environments/int.tfvars` sets `sfdc_read_mcp_copilot_app_id` to the app ID from Step 1.
-4. The APIM API policy template (`policies/apim-policy-sfdc-read-mcp.xml`) accepts that app ID as a second valid audience alongside the original reader app.
+2. Wiring: `infrastructure/main.tf` calls the module unconditionally with `client_app_id = var.sfdc_read_mcp_app_id`. The module internally gates resource creation on a non-empty value (`enabled = var.client_app_id != ""`).
+3. Per-env input: `infrastructure/environments/int.tfvars` sets `sfdc_read_mcp_app_id` to the app ID from Step 1.
+4. The APIM API policy template (`policies/apim-policy-sfdc-read-mcp.xml`) accepts **both audience formats** of this single app: `api://<app-id>` (issued in the `.default` / api-scope flow used by Power Automate and Copilot Studio) and the bare `<app-id>` GUID (issued when Entra rejects the `api://` form in self-OAuth, where the client app and resource app are the same). This is one app reg with two accepted aud claims, not two separate apps.
 
 To apply:
 
@@ -306,7 +306,7 @@ Expected fields:
 If the entire INT identity surface has been lost and needs rebuilding:
 
 1. Run Steps 1–7 in order. Each Step's `.1 Verify` block will report missing and the `.2 Create/Add` script is what an admin runs.
-2. Update `infrastructure/environments/int.tfvars` with the new `sfdc_read_mcp_copilot_app_id` from Step 1.
+2. Update `infrastructure/environments/int.tfvars` with the new `sfdc_read_mcp_app_id` from Step 1.
 3. Run Step 8's `terraform apply` (through the pipeline if available, locally if not).
 4. Update both connector runbooks' Step 0 constants tables with the new App ID and any new scope/role GUIDs.
 5. Re-run the verification reads at the top of the Copilot Studio and Power Automate runbooks.
