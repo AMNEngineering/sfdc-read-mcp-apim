@@ -66,7 +66,9 @@ If `int_verify` fails the smoke step, the most common cause is the ADO Upper SPN
 
 ### Manual delegated-token test (run as your daily driver)
 
-CI cannot exercise the delegated-token (`scp`-bearing) path that Power Automate and Copilot Studio user-delegated connections actually carry — see [Known automation gap](#known-automation-gap) below for why. The workaround is to run the smoke locally under your own daily-driver `az login`:
+CI cannot exercise the delegated-token (`scp`-bearing) path that Power Automate and Copilot Studio user-delegated connections actually carry — see [Known automation gap](#known-automation-gap) below for why. The workaround is to run the smoke locally under your own daily-driver `az login`.
+
+**Prerequisite (one-time per env):** the env's app reg must have Azure CLI in `preAuthorizedApplications`. Without it, `az` returns AADSTS65001 when requesting tokens for the `user_impersonation` scope. See [IDENTITY-BOOTSTRAP-INT.md Step 5](onboarding/IDENTITY-BOOTSTRAP-INT.md#step-5-pre-authorize-trusted-clients) for the verify query and the committed admin script (`infrastructure/scripts/Add-AzureCliPreAuth-Int.ps1`).
 
 ```powershell
 az login --tenant 6232c2ec-fa42-4f27-92cd-787913fba489

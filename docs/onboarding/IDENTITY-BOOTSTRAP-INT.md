@@ -171,39 +171,36 @@ Reviewer fills in the exact URI captured from the connector's Security tab. The 
 	az ad app update --id $appId --web-redirect-uris @uris
 	az ad app show --id $appId --query "web.redirectUris" -o json
 
-## Step 5: Pre-authorize APIM as a client
+## Step 5: Pre-authorize trusted clients
 
-APIM exchanges the user's token for the user_impersonation scope on the API. Pre-authorizing the APIM client app ID suppresses an end-user consent prompt for that scope.
+Pre-authorizing a client app in `api.preAuthorizedApplications` suppresses the end-user consent prompt for the named delegated scope. Two clients are pre-authorized on this app reg:
+
+| Client | App ID | Why pre-authorized |
+|---|---|---|
+| APIM (`amn-wus2-hub-apim-i02`) | `8602e328-9b72-4f2d-a4ae-1387d013a2b3` | The gateway policy exchanges the user's token for `user_impersonation` during request processing |
+| Azure CLI (Microsoft first-party) | `04b07795-8ddb-461a-bbee-02f9e1bf7b46` | Enables engineer-driven smoke testing of the delegated (`scp`) path via `az account get-access-token --resource <app-id>` — without this, `az` returns AADSTS65001 against `user_impersonation` |
 
 ### 5.1 Verify
 
 Daily driver:
 
-	az ad app show --id <app-id> --query "api.preAuthorizedApplications[?appId=='8602e328-9b72-4f2d-a4ae-1387d013a2b3']" -o json
+	az ad app show --id <app-id> --query "api.preAuthorizedApplications[].{appId:appId,permissions:delegatedPermissionIds}" -o json
 
-- Expected: a single entry with the APIM `appId` and `delegatedPermissionIds` containing the scope `id` recorded in Step 2.
+- Expected: two entries — APIM (`8602e328-...`) and Azure CLI (`04b07795-...`), each with `delegatedPermissionIds` containing the scope `id` recorded in Step 2.
 
 ### 5.2 Add script (admin)
 
-	$objectId    = "<object-id-from-step-1>"
-	$clientAppId = "8602e328-9b72-4f2d-a4ae-1387d013a2b3"
-	$scopeId     = "<scope-id-from-step-2>"
-	$body = @{
-	  api = @{
-	    preAuthorizedApplications = @(
-	      @{
-	        appId = $clientAppId
-	        delegatedPermissionIds = @($scopeId)
-	      }
-	    )
-	  }
-	} | ConvertTo-Json -Depth 6 -Compress
-	$tmp = Join-Path $env:TEMP ("preauth-" + [guid]::NewGuid().Guid + ".json")
-	$body | Set-Content -Path $tmp -Encoding utf8
-	az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$objectId" --headers "Content-Type=application/json" --body "@$tmp"
-	Remove-Item $tmp -ErrorAction SilentlyContinue
+The canonical script is committed at:
 
-Patching `api` replaces the `preAuthorizedApplications` array. If other clients already exist there, merge them into the body before sending.
+	infrastructure/scripts/Add-AzureCliPreAuth-Int.ps1
+
+It performs the .adm-elevated PATCH idempotently — reads the current `preAuthorizedApplications` list, refuses to act if APIM is missing (defense against running against a half-bootstrapped app reg), merges Azure CLI into the existing entries, then verifies the post-state. Supports `-WhatIf` for dry-run. Uses `Connect-AzAccount` in an isolated PowerShell context so your daily-driver `az` session is not affected — see [ADM-ELEVATION-PATTERN.md](https://github.com/AMNEngineering/amn-ops-ai-plugin-marketplace/blob/main/setup/scripts/ADM-ELEVATION-PATTERN.md) for the pattern.
+
+	cd C:\projects\SFDCRead
+	.\infrastructure\scripts\Add-AzureCliPreAuth-Int.ps1 -WhatIf  # review proposed merge
+	.\infrastructure\scripts\Add-AzureCliPreAuth-Int.ps1          # apply
+
+To pre-authorize a different client on this app reg in the future (a new Logic App principal, a new Functions identity, etc.), copy this script as a template — the elevation, idempotent-merge, and verify pattern is reusable; only the `AzureCliAppId` parameter default needs replacing.
 
 ## Step 6: Client secret in Key Vault
 
