@@ -75,7 +75,7 @@ Symptoms that *are* bugs (and should fail loudly): JWT validation gaps, broken O
 
 3. **Run test suite**:
    ```powershell
-   .\test-harness\Invoke-SfdcReadTest.ps1 -Environment dev -TestSuite all
+   .\test-harness\Invoke-ApimSmokeTest.ps1 -Environment dev -TestSuite all
    ```
 
 ### ADO Pipeline Deployment
