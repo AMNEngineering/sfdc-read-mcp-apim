@@ -29,8 +29,8 @@
   Standard PowerShell WhatIf. Reports what would change, does not patch.
 
 .EXAMPLE
-  .\temp\Add-AzureCliPreAuth-Int.ps1 -WhatIf
-  .\temp\Add-AzureCliPreAuth-Int.ps1
+  .\infrastructure\scripts\Add-AzureCliPreAuth-Int.ps1 -WhatIf
+  .\infrastructure\scripts\Add-AzureCliPreAuth-Int.ps1
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
@@ -74,8 +74,11 @@ try {
 
     Write-Host ""
     Write-Host "Connecting to Azure PowerShell (isolated context)..." -ForegroundColor Yellow
-    Disconnect-AzAccount -ErrorAction SilentlyContinue | Out-Null
-    Connect-AzAccount -TenantId $TenantId -UseDeviceAuthentication -ErrorAction Stop | Out-Null
+    # -WhatIf:$false on auth + read-only Graph GETs so dry-run still authenticates
+    # and inspects current state. The Graph PATCH below stays gated by the explicit
+    # $PSCmdlet.ShouldProcess() — that's the only mutation the script performs.
+    Disconnect-AzAccount -ErrorAction SilentlyContinue -WhatIf:$false | Out-Null
+    Connect-AzAccount -TenantId $TenantId -UseDeviceAuthentication -ErrorAction Stop -WhatIf:$false | Out-Null
 
     $context = Get-AzContext
     $currentAccount = $context.Account.Id
@@ -83,7 +86,7 @@ try {
     if ($currentAccount -notlike "*.adm*") {
         Write-Host ""
         Write-Host "Signed in as '$currentAccount' — this is not a .adm account. Aborting." -ForegroundColor Red
-        Disconnect-AzAccount | Out-Null
+        Disconnect-AzAccount -WhatIf:$false | Out-Null
         exit 1
     }
     Write-Host "Elevated as: $currentAccount" -ForegroundColor Green
@@ -92,7 +95,7 @@ try {
 
     Write-Host ""
     Write-Host "Reading current preAuthorizedApplications..." -ForegroundColor Yellow
-    $resp = Invoke-AzRestMethod -Uri "https://graph.microsoft.com/v1.0/applications/$AppObjectId" -Method GET
+    $resp = Invoke-AzRestMethod -Uri "https://graph.microsoft.com/v1.0/applications/$AppObjectId" -Method GET -WhatIf:$false
     if ($resp.StatusCode -ne 200) { throw "Graph GET failed (HTTP $($resp.StatusCode)): $($resp.Content)" }
     $app = $resp.Content | ConvertFrom-Json
     $currentList = @($app.api.preAuthorizedApplications)
@@ -148,7 +151,7 @@ try {
     # ── Verify ──
 
     Write-Host "Verifying..." -ForegroundColor Yellow
-    $resp = Invoke-AzRestMethod -Uri "https://graph.microsoft.com/v1.0/applications/$AppObjectId" -Method GET
+    $resp = Invoke-AzRestMethod -Uri "https://graph.microsoft.com/v1.0/applications/$AppObjectId" -Method GET -WhatIf:$false
     $verifyList = ($resp.Content | ConvertFrom-Json).api.preAuthorizedApplications
     $verifyList | ForEach-Object { "  $($_.appId) -> [$([string]::Join(',', @($_.delegatedPermissionIds)))]" }
 
@@ -177,6 +180,6 @@ catch {
 finally {
     Write-Host ""
     Write-Host "Disconnecting elevated session..." -ForegroundColor Gray
-    Disconnect-AzAccount -ErrorAction SilentlyContinue | Out-Null
+    Disconnect-AzAccount -ErrorAction SilentlyContinue -WhatIf:$false | Out-Null
     Write-Host "Done. Your az CLI / Claude Code sessions are unaffected." -ForegroundColor Gray
 }
