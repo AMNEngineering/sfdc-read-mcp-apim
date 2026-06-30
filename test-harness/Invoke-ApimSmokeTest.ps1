@@ -36,10 +36,22 @@
                 returned token has aud=<bare-GUID> — the audience format PA's
                 self-OAuth flow produces. Validates that PR #19's dual-audience
                 policy still accepts that shape.
+.PARAMETER AssertDelegated
+    Manual-test guardrail. Verifies the acquired token is a delegated user token
+    (has `scp` claim) rather than an app-only token (only `roles` claim). Prints
+    the identity-relevant claims so the operator has paste-into-PR evidence of
+    which user/audience/scope was exercised. Use when running locally under your
+    daily-driver `az login` to validate the delegated path that CI cannot cover
+    (see docs/TESTING.md "Known automation gap"). Fails fast if the token shape
+    is wrong for the intended test.
 .EXAMPLE
     .\Invoke-ApimSmokeTest.ps1
 .EXAMPLE
     .\Invoke-ApimSmokeTest.ps1 -TokenMode AppOnly
+.EXAMPLE
+    # Manual delegated-token verification, run as your daily driver:
+    az login
+    .\Invoke-ApimSmokeTest.ps1 -AssertDelegated
 #>
 
 param(
@@ -49,6 +61,8 @@ param(
 
     [ValidateSet('AzCli', 'AppOnly')]
     [string]$TokenMode = 'AzCli',
+
+    [switch]$AssertDelegated,
 
     [switch]$VerboseLogging
 )
@@ -197,6 +211,59 @@ function Get-AppOnlyJwt {
         Write-TestLog "If the policy later returns 401/403, check that the calling SPN ($clientId) has the MCP.Read app role assignment on the SFDCRead app reg's service principal (per docs/onboarding/IDENTITY-BOOTSTRAP-INT.md Step 7.3 pattern)." -Level WARN
         throw
     }
+}
+
+function Get-JwtPayload {
+    # Decode the middle segment of a JWT (no signature verification — we just
+    # acquired the token, this is for inspection only). Returns the parsed
+    # claims as a PSCustomObject.
+    param([string]$Jwt)
+
+    $parts = $Jwt -split '\.'
+    if ($parts.Count -lt 2) { throw "Bearer is not a JWT" }
+
+    $payload = $parts[1].Replace('-', '+').Replace('_', '/')
+    $padding = (4 - ($payload.Length % 4)) % 4
+    $payload = $payload + ('=' * $padding)
+
+    $bytes = [Convert]::FromBase64String($payload)
+    return [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
+}
+
+function Assert-DelegatedToken {
+    # Verify the acquired bearer is a delegated user token, not an app-only
+    # token. Delegated tokens carry `scp`; app-only tokens carry `roles` only.
+    # Power Automate and Copilot Studio user-delegated flows carry `scp`, so
+    # this is the manual-test guardrail that proves the operator actually
+    # exercised the path PA users take — not (e.g.) an accidental SPN login.
+    param([string]$Jwt)
+
+    Write-TestLog "`n--- Delegated-token assertion ---" -Level INFO
+
+    $claims = Get-JwtPayload -Jwt $Jwt
+
+    $rolesValue = if ($claims.roles) { ($claims.roles -join ', ') } else { '<none>' }
+    $scpValue   = if ($claims.scp)   { $claims.scp }                 else { '<none>' }
+    $upnValue   = if ($claims.upn)   { $claims.upn } elseif ($claims.preferred_username) { $claims.preferred_username } else { '<none>' }
+
+    Write-Host "  aud   : $($claims.aud)"
+    Write-Host "  scp   : $scpValue"
+    Write-Host "  roles : $rolesValue"
+    Write-Host "  oid   : $($claims.oid)"
+    Write-Host "  name  : $($claims.name)"
+    Write-Host "  upn   : $upnValue"
+
+    if (-not $claims.scp) {
+        Write-TestLog "Token has no 'scp' claim — this is an app-only token, not a delegated user token." -Level ERROR
+        Write-TestLog "For delegated-path verification, run 'az login' as your daily driver and invoke this script WITHOUT -TokenMode AppOnly." -Level ERROR
+        throw "AssertDelegated failed: token is app-only (no scp claim)"
+    }
+
+    if (-not (@($claims.roles) -contains 'MCP.Read')) {
+        Write-TestLog "Token does not carry 'MCP.Read' in roles claim — user is not in AZ_AMN_AAD_SfdcReadMcp_Int_User, or membership hasn't propagated. APIM will 403." -Level WARN
+    }
+
+    Write-TestLog "Delegated token confirmed (scp present)" -Level SUCCESS
 }
 
 function Send-McpNotification {
@@ -719,6 +786,10 @@ Write-TestLog "Token mode: $TokenMode" -Level INFO
 $jwt = switch ($TokenMode) {
     'AppOnly' { Get-AppOnlyJwt -TenantId $TenantId -AppId $AppId }
     default   { Get-EntraJwt   -TenantId $TenantId -ClientId $ClientId -Scope $AppId }
+}
+
+if ($AssertDelegated) {
+    Assert-DelegatedToken -Jwt $jwt
 }
 
 # Step 2: Run tests

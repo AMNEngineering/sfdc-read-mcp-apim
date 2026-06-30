@@ -51,76 +51,66 @@ All tests passed!
 
 ## APIM Smoke Test
 
-The smoke test validates end-to-end APIM deployment including JWT authentication.
+The smoke test (`test-harness/Invoke-ApimSmokeTest.ps1`) validates the deployed INT gateway end-to-end. It supports two token modes; together they exercise the two audience formats the dual-audience policy accepts.
 
-### Current Limitation
+### Automated (CI)
 
-**Azure CLI cannot acquire tokens for the API scope directly.** The app registrations expose `user_impersonation` scope, but Azure CLI (`04b07795-8ddb-461a-bbee-02f9e1bf7b46`) is not pre-authorized.
+`int_verify` runs the smoke in `-TokenMode AppOnly` (see `.ado/pipelines/deploy.yml`):
 
-### Workaround: Manual Token Acquisition
+- Bearer acquired via `client_credentials` against the v2 token endpoint
+- Scope: `<app-id>/.default` (bare-GUID, no `api://` prefix)
+- Result: app-only token with `aud=<bare-GUID>`, `roles=[MCP.Read]`
+- Validates: the policy still accepts bare-GUID audience — the format Power Automate's self-OAuth produces, per PR #19
 
-For now, test APIM without the smoke test script:
+If `int_verify` fails the smoke step, the most common cause is the ADO Upper SPN missing the `MCP.Read` app-role assignment on the SFDCRead app reg's SP. Fix is the same Graph PATCH pattern as `docs/onboarding/IDENTITY-BOOTSTRAP-INT.md` Step 7.3, with the SPN's object ID as the principal.
 
-#### Option 1: Use Postman/REST Client
+### Manual delegated-token test (run as your daily driver)
 
-1. Configure OAuth 2.0 in Postman:
-   - **Grant Type**: Authorization Code with PKCE
-   - **Auth URL**: `https://login.microsoftonline.com/6232c2ec-fa42-4f27-92cd-787913fba489/oauth2/v2.0/authorize`
-   - **Access Token URL**: `https://login.microsoftonline.com/6232c2ec-fa42-4f27-92cd-787913fba489/oauth2/v2.0/token`
-   - **Client ID**: `6ce6ccb1-32db-40f8-97b5-bfbe700d052e` (dev) or `42971939-bc78-4c23-963e-c3e0f87e3bd1` (int, "SFDCRead INT MCP")
-   - **Scope**: `api://6ce6ccb1-32db-40f8-97b5-bfbe700d052e/user_impersonation` (dev) or `api://42971939-bc78-4c23-963e-c3e0f87e3bd1/user_impersonation` (int)
-   - **Redirect URI**: `https://oauth.pstmn.io/v1/callback`
-
-2. Get Access Token (will prompt for login)
-
-3. Send MCP request:
-   ```
-   POST https://amn-wus2-hub-apim-d02.azure-api.net/sfdcread/dev/mcp
-   Headers:
-     Authorization: Bearer <token>
-     Content-Type: application/json
-   Body:
-     {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
-   ```
-
-#### Option 2: Direct cURL (No JWT - Will Fail Auth)
-
-This demonstrates that JWT validation is working:
-
-```bash
-curl -X POST https://amn-wus2-hub-apim-d02.azure-api.net/sfdcread/dev/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-```
-
-Expected: `401 Unauthorized` (JWT validation working correctly)
-
-### Automated Smoke Test
-
-The smoke test runs today against deployed INT. It needs a dedicated test client app (Azure CLI cannot acquire tokens for the API scope directly, as noted above). Provision the test client app via one of:
+CI cannot exercise the delegated-token (`scp`-bearing) path that Power Automate and Copilot Studio user-delegated connections actually carry — see [Known automation gap](#known-automation-gap) below for why. The workaround is to run the smoke locally under your own daily-driver `az login`:
 
 ```powershell
+az login --tenant 6232c2ec-fa42-4f27-92cd-787913fba489
 cd test-harness
-.\New-TestClientApp.ps1         # MS Graph PowerShell SDK path
-# or
-.\New-TestClientApp-AzCli.ps1   # az ad path
+./Invoke-ApimSmokeTest.ps1 -AssertDelegated
 ```
 
-Then run:
+`-AssertDelegated` fails fast if the acquired token is app-only (no `scp` claim) and prints the identity-relevant claims so you have paste-into-PR evidence of which user, audience, scope, and role membership were exercised.
 
-```powershell
-cd test-harness
-.\Invoke-ApimSmokeTest.ps1
-```
+**When to run it:**
+
+- Before merging any PR that touches `policies/apim-policy-sfdc-read-mcp.xml` JWT validation, audience config, or claim parsing
+- After any change to the per-environment app reg's identifier URIs or app-role assignments
+- After any change to `AZ_AMN_AAD_SfdcReadMcp_Int_User` group membership rules
+
+**Evidence to capture in the PR comment:**
+
+- The "Token claims" block printed by `-AssertDelegated`
+- The smoke summary line (`Results: X pass / Y warn / Z fail`)
+- The correlation ID of any failed test (the script echoes `x-correlation-id` per request)
 
 The smoke test:
-- Acquires a JWT interactively against the test client app
+
+- Acquires a JWT
 - Calls through APIM to real Salesforce INT
 - Exercises in-scope SObjects (PASS = data returned)
 - Exercises boundary assertions (PASS = correctly blocked — e.g. `Account` returns `INVALID_TYPE`; FAIL = boundary breach)
 - Distinguishes WARN (wiring healthy, data-access error needs review against documented scope) from FAIL (broken wiring or boundary breach)
 
-See the script's header comment for full status semantics. Adding Dev/Prod targets is a TODO in the script itself.
+See the script's header comment for full status semantics.
+
+### Known automation gap
+
+The delegated-token (`scp`) path is **deliberately not automated**. The available identity options don't fit:
+
+| Option | Fit | Why not |
+|---|---|---|
+| Managed identity | No | Issues app-only tokens only (no `scp` claim); cannot impersonate a user |
+| Dedicated licensed mailbox SA | No | Recurring per-seat cost + user-lifecycle (HR/CA/MFA) overhead just to host a refresh token |
+| ROPC (password grant) | No | Microsoft-deprecated; AMN tenant CA policy blocks it; requires storing a real user password |
+| Headless browser auth-code | No | Brittle to Entra UI changes; AMN CA policies (compliant-device, location) reject headless agents; MFA still needs solving |
+| Daily-driver refresh token in KV | Shelved | Would impersonate a real human in Entra sign-in logs; audit-trail confusion outweighs CI value at current scope |
+
+Decision: validate the delegated path with the documented manual run above before policy- or identity-touching PRs merge, rather than via CI. Revisit if the rate of delegated-token regressions becomes high enough to justify the daily-driver-refresh-token mechanism (and accept the audit-log consequence).
 
 ## Integration Testing (Int Environment)
 
