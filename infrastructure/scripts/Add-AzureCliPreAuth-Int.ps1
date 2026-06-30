@@ -62,6 +62,10 @@ Write-Host "Your Azure CLI session (daily-driver) is NOT affected — Connect-Az
 Write-Host "uses an isolated PowerShell context. See:" -ForegroundColor Green
 Write-Host "  amn-ops-ai-plugin-marketplace/setup/scripts/ADM-ELEVATION-PATTERN.md" -ForegroundColor DarkGray
 Write-Host ""
+Write-Host "This script calls Microsoft Graph only — no Azure subscription operations." -ForegroundColor Green
+Write-Host "The Az.Accounts interactive subscription picker is suppressed for this" -ForegroundColor Green
+Write-Host "session; whichever subscription the SDK auto-selects is fine." -ForegroundColor Green
+Write-Host ""
 
 $go = Read-Host "Ready to elevate? (Y/N)"
 if ($go -notmatch '^[Yy]') {
@@ -77,6 +81,11 @@ try {
     # -WhatIf:$false on auth + read-only Graph GETs so dry-run still authenticates
     # and inspects current state. The Graph PATCH below stays gated by the explicit
     # $PSCmdlet.ShouldProcess() — that's the only mutation the script performs.
+    # Update-AzConfig -LoginExperienceV2 Off suppresses the Az.Accounts 3.x+ interactive
+    # subscription picker. -Scope Process scopes the change to this PowerShell process
+    # only, so the user's other Az sessions are unaffected. Safe to set unconditionally
+    # because the script never reads or writes subscription-scoped resources — Graph only.
+    Update-AzConfig -LoginExperienceV2 Off -Scope Process -WhatIf:$false | Out-Null
     Disconnect-AzAccount -ErrorAction SilentlyContinue -WhatIf:$false | Out-Null
     Connect-AzAccount -TenantId $TenantId -UseDeviceAuthentication -ErrorAction Stop -WhatIf:$false | Out-Null
 
@@ -90,6 +99,11 @@ try {
         exit 1
     }
     Write-Host "Elevated as: $currentAccount" -ForegroundColor Green
+    $selectedSub = $context.Subscription
+    if ($selectedSub) {
+        Write-Host "Auto-selected subscription: $($selectedSub.Name) ($($selectedSub.Id))" -ForegroundColor DarkGray
+        Write-Host "(Not used by this script — Microsoft Graph only.)" -ForegroundColor DarkGray
+    }
 
     # ── Read current state via Graph ──
 
