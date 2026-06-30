@@ -553,14 +553,28 @@ function Test-ToolsList {
 
     Write-TestLog "`n--- Test 2: Tools List ---" -Level INFO
 
+    $corrId = [guid]::NewGuid().ToString()
+    Write-TestLog "tools/list correlation-id: $corrId" -Level INFO
+    Write-TestLog "tools/list Mcp-Session-Id in scope: $script:McpSessionId" -Level INFO
+
     $response = Invoke-McpRequest `
         -Endpoint $Endpoint `
         -BearerToken $Token `
         -Method "tools/list" `
-        -Id 2
+        -Id 2 `
+        -CorrelationId $corrId
 
     if (-not $response.result.tools) {
-        throw "Missing tools array in response"
+        Write-TestLog "tools/list returned no tools array. Raw parsed response follows:" -Level ERROR
+        Write-TestLog ($response | ConvertTo-Json -Depth 10) -Level ERROR
+        if ($response.error) {
+            Write-TestLog "JSON-RPC error code: $($response.error.code)" -Level ERROR
+            Write-TestLog "JSON-RPC error message: $($response.error.message)" -Level ERROR
+            if ($response.error.data) {
+                Write-TestLog "JSON-RPC error data: $($response.error.data | ConvertTo-Json -Depth 10 -Compress)" -Level ERROR
+            }
+        }
+        throw "Missing tools array in response (correlation-id $corrId; see dump above)"
     }
 
     $toolCount = $response.result.tools.Count
