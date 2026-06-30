@@ -25,14 +25,30 @@
     Entra tenant ID (defaults to AMN Healthcare)
 .PARAMETER ClientId
     Test client app registration ID (interactive user auth)
+.PARAMETER TokenMode
+    How to acquire the bearer:
+      AzCli   - default; uses `az account get-access-token --resource api://<app-id>`
+                under whatever identity az is logged in as. Produces aud=api://<app-id>.
+                Convenient on a dev laptop; matches the PA "explicit scope" path.
+      AppOnly - posts client_credentials directly to the v2 token endpoint using
+                ARM_CLIENT_ID/SECRET/TENANT_ID env vars (exported by ADO AzureCLI@2
+                with addSpnToEnvironment=true). Uses scope=<app-id>/.default so the
+                returned token has aud=<bare-GUID> — the audience format PA's
+                self-OAuth flow produces. Validates that PR #19's dual-audience
+                policy still accepts that shape.
 .EXAMPLE
     .\Invoke-ApimSmokeTest.ps1
+.EXAMPLE
+    .\Invoke-ApimSmokeTest.ps1 -TokenMode AppOnly
 #>
 
 param(
     [string]$TenantId = "6232c2ec-fa42-4f27-92cd-787913fba489",
 
     [string]$ClientId = "",
+
+    [ValidateSet('AzCli', 'AppOnly')]
+    [string]$TokenMode = 'AzCli',
 
     [switch]$VerboseLogging
 )
@@ -94,7 +110,7 @@ function Get-EntraJwt {
         [string]$Scope
     )
 
-    Write-TestLog "Acquiring Entra JWT token..." -Level INFO
+    Write-TestLog "Acquiring Entra JWT token via az cli (aud=api://$Scope)..." -Level INFO
 
     try {
         # Use az cli for token acquisition (device code flow if needed)
@@ -124,6 +140,61 @@ function Get-EntraJwt {
     }
     catch {
         Write-TestLog "Failed to acquire token: $_" -Level ERROR
+        throw
+    }
+}
+
+function Get-AppOnlyJwt {
+    # client_credentials directly against the v2 token endpoint using the ADO
+    # service connection SPN exported by AzureCLI@2 (addSpnToEnvironment=true).
+    # Scope shape <app-id>/.default (NO api:// prefix) makes Entra issue a token
+    # with aud=<bare-GUID> — the format PA produces in self-OAuth and that PR #19
+    # taught the policy to accept.
+    param(
+        [string]$TenantId,
+        [string]$AppId
+    )
+
+    Write-TestLog "Acquiring app-only JWT token via client_credentials (aud=$AppId)..." -Level INFO
+
+    $clientId     = $env:ARM_CLIENT_ID
+    $clientSecret = $env:ARM_CLIENT_SECRET
+    $resolvedTenant = if ([string]::IsNullOrEmpty($env:ARM_TENANT_ID)) { $TenantId } else { $env:ARM_TENANT_ID }
+
+    if ([string]::IsNullOrEmpty($clientId) -or [string]::IsNullOrEmpty($clientSecret)) {
+        throw "TokenMode=AppOnly requires ARM_CLIENT_ID and ARM_CLIENT_SECRET in the environment. " +
+              "In ADO use AzureCLI@2 with addSpnToEnvironment=true and export them in the inline script. " +
+              "Locally, export them from a service principal credential you already hold."
+    }
+
+    $body = @{
+        client_id     = $clientId
+        client_secret = $clientSecret
+        grant_type    = 'client_credentials'
+        scope         = "$AppId/.default"
+    }
+
+    try {
+        $resp = Invoke-RestMethod `
+            -Uri "https://login.microsoftonline.com/$resolvedTenant/oauth2/v2.0/token" `
+            -Method POST `
+            -Body $body `
+            -ContentType 'application/x-www-form-urlencoded'
+
+        if ([string]::IsNullOrEmpty($resp.access_token)) {
+            throw "Token endpoint returned no access_token"
+        }
+
+        Write-TestLog "App-only JWT acquired (expires in $($resp.expires_in)s)" -Level SUCCESS
+        return $resp.access_token
+    }
+    catch {
+        # The most likely failure here is the ADO SPN not having the MCP.Read
+        # role on the SFDCRead app reg's SP. Surface that hypothesis loudly
+        # rather than burying it in a generic auth error.
+        $msg = "App-only token acquisition failed: $_"
+        Write-TestLog $msg -Level ERROR
+        Write-TestLog "If the policy later returns 401/403, check that the calling SPN ($clientId) has the MCP.Read app role assignment on the SFDCRead app reg's service principal (per docs/onboarding/IDENTITY-BOOTSTRAP-INT.md Step 7.3 pattern)." -Level WARN
         throw
     }
 }
@@ -642,9 +713,13 @@ Write-Host "===============================================================" -Fo
 Write-TestLog "Environment: int" -Level INFO
 Write-TestLog "Endpoint: $ApimEndpoint" -Level INFO
 Write-TestLog "App ID: $AppId" -Level INFO
+Write-TestLog "Token mode: $TokenMode" -Level INFO
 
 # Step 1: Acquire JWT token
-$jwt = Get-EntraJwt -TenantId $TenantId -ClientId $ClientId -Scope $AppId
+$jwt = switch ($TokenMode) {
+    'AppOnly' { Get-AppOnlyJwt -TenantId $TenantId -AppId $AppId }
+    default   { Get-EntraJwt   -TenantId $TenantId -ClientId $ClientId -Scope $AppId }
+}
 
 # Step 2: Run tests
 try {

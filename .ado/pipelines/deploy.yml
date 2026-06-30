@@ -495,6 +495,26 @@ stages:
                   exit 1
                 fi
 
+          # End-to-end smoke against the deployed gateway.
+          # Uses the ADO Upper SPN's client_credentials with scope=<app-id>/.default
+          # so the token's aud is bare-GUID — the format PA produces in self-OAuth
+          # and that PR #19 taught the policy to accept. Catches audience-acceptance
+          # regressions automatically; the ARM checks above only verify the policy
+          # XML contains certain strings, not that the policy still accepts the
+          # token shapes downstream consumers (PA / Copilot Studio) send.
+          - task: AzureCLI@2
+            displayName: "Smoke test (bare-GUID audience)"
+            inputs:
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              addSpnToEnvironment: true
+              azureSubscription: '$(ServiceConnection_Upper)'
+              inlineScript: |
+                $env:ARM_CLIENT_ID     = $env:servicePrincipalId
+                $env:ARM_CLIENT_SECRET = $env:servicePrincipalKey
+                $env:ARM_TENANT_ID     = $env:tenantId
+                ./test-harness/Invoke-ApimSmokeTest.ps1 -TokenMode AppOnly
+
   # -----------------------------------------------------------------------------------------------------------------
   # Prod environment Plan stage (requires CAB approval before creating this)
   # -----------------------------------------------------------------------------------------------------------------
