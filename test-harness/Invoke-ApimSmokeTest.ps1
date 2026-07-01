@@ -28,14 +28,24 @@
 .PARAMETER TokenMode
     How to acquire the bearer:
       AzCli   - default; uses `az account get-access-token --resource api://<app-id>`
-                under whatever identity az is logged in as. Produces aud=api://<app-id>.
-                Convenient on a dev laptop; matches the PA "explicit scope" path.
+                under whatever identity az is logged in as. Produces aud=api://<app-id>
+                — the audience format PA and Copilot Studio actually use in production
+                (Scope: api://<app-id>/user_impersonation per the onboarding docs).
+                Works with WIF-federated SPNs (no client_secret needed), so this is
+                what CI runs.
       AppOnly - posts client_credentials directly to the v2 token endpoint using
-                ARM_CLIENT_ID/SECRET/TENANT_ID env vars (exported by ADO AzureCLI@2
-                with addSpnToEnvironment=true). Uses scope=<app-id>/.default so the
-                returned token has aud=<bare-GUID> — the audience format PA's
-                self-OAuth flow produces. Validates that PR #19's dual-audience
-                policy still accepts that shape.
+                ARM_CLIENT_ID/SECRET/TENANT_ID env vars. Produces aud=<bare-GUID>
+                (self-OAuth shape retained for the AADSTS90009 fallback path only).
+                Cannot be used with WIF SPNs. Retained for secret-based SPNs and
+                for local dev when you want to exercise the bare-GUID branch of the
+                dual-audience policy.
+
+    Coverage limits: both modes produce APP-ONLY tokens (SPN authenticates itself
+    with `roles` claim populated from its own app-role assignments). PA and Copilot
+    Studio use DELEGATED user tokens (both `scp: user_impersonation` and `roles:
+    MCP.Read` populated from the user's assignment). CI can't easily reproduce the
+    delegated interactive flow; the delegated path must be verified manually against
+    the deployed connectors. See docs/TESTING.md "Known automation gap".
 .PARAMETER AssertDelegated
     Manual-test guardrail. Verifies the acquired token is a delegated user token
     (has `scp` claim) rather than an app-only token (only `roles` claim). Prints
