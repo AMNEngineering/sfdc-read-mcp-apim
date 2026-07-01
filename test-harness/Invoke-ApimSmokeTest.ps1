@@ -481,10 +481,22 @@ function Invoke-McpRequest {
             $mediaType = $response.Content.Headers.ContentType.MediaType
         }
 
+        $statusCode = [int]$response.StatusCode
+        Write-TestLog "HTTP $statusCode; Content-Type: $mediaType" -Level INFO
+
         if ($mediaType -eq 'text/event-stream') {
             $parsed = Read-McpSseResponse -Response $response -ExpectedId $Id -TimeoutSeconds $TimeoutSeconds
         } else {
             $bodyText = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+            $bodyLen = if ($null -eq $bodyText) { 0 } else { $bodyText.Length }
+            Write-TestLog "Body length: $bodyLen bytes" -Level INFO
+            if ($bodyLen -eq 0) {
+                Write-TestLog "Empty body from gateway on $Method (status $statusCode). ConvertFrom-Json will yield `$null." -Level WARN
+            } else {
+                # Truncate to keep log readable — 2 KB is plenty for JSON-RPC envelopes
+                $preview = if ($bodyLen -gt 2048) { $bodyText.Substring(0, 2048) + "…[truncated $($bodyLen - 2048) bytes]" } else { $bodyText }
+                Write-TestLog "Raw body: $preview" -Level INFO
+            }
             $parsed = $bodyText | ConvertFrom-Json
         }
 
