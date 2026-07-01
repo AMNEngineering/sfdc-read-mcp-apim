@@ -51,7 +51,21 @@ All tests passed!
 
 ## APIM Smoke Test
 
-The smoke test (`test-harness/Invoke-ApimSmokeTest.ps1`) validates the deployed INT gateway end-to-end. It supports two token modes; together they exercise the two audience formats the dual-audience policy accepts.
+The smoke test (`test-harness/Invoke-ApimSmokeTest.ps1`) validates the deployed gateway end-to-end. Pass `-Environment dev` or `-Environment int` (default `int`) to select the target — the script flips endpoint and app ID accordingly.
+
+Both environments share the JWT / role check / MCP session shape, so client-side and policy-shape regressions surface in dev. Dev diverges in the SF-exchange half: dev uses `apim-policy-sfdc-read-mcp-dev-mock.xml` with inline mock responses and never calls Salesforce, while int uses `apim-policy-sfdc-read-mcp.xml` with the SF token exchange and real backend.
+
+### Dev-first bisect loop
+
+When a smoke failure could be either client-side / APIM policy shape or SF-exchange, reproduce against dev first. Dev is safe to hammer, auto-deploys on push to `main` (no CAB), and does not touch Salesforce:
+
+1. Repro against dev with `.\test-harness\Invoke-ApimSmokeTest.ps1 -Environment dev -AssertDelegated`.
+2. If dev fails the same way → issue lives in the shared upper half (JWT / role / method whitelist / session handling). Iterate on `apim-policy-sfdc-read-mcp-dev-mock.xml`, redeploy dev, re-smoke.
+3. If dev passes but int fails → issue is in the SF-exchange half (`apim-policy-sfdc-read-mcp.xml` SF token exchange or backend routing). Iterate there.
+4. When dev is green, port shared-half changes into `apim-policy-sfdc-read-mcp.xml`, open int-policy PR (CAB approval + `int_apply` manual gate applies).
+5. Re-run the int smoke manually (delegated path — see [Known automation gap](#known-automation-gap)).
+
+Two token modes are supported; together they exercise the two audience formats the dual-audience policy accepts.
 
 ### Automated (CI)
 
