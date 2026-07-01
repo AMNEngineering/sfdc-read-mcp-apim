@@ -4,6 +4,21 @@
 
 This document describes how to test the SFDC Read MCP APIM deployment across environments.
 
+## MCP validation methodology (two-tier)
+
+MCP endpoints fronted by APIM cannot be fully validated by a single test path. The Custom Connector's own **Test tab is not an MCP client** — it POSTs with `Accept: application/json` and gets HTTP 406 back because the MCP streamable-HTTP transport requires `Accept: application/json, text/event-stream`. Adding an `Accept` header parameter to the connector definition is not viable — it trips APIM's swagger validator with a "duplicate body parameter" error and breaks MCP mode. Any signal that comes out of the connector's own Test tab (whether success or a 406) is not a valid MCP correctness claim.
+
+Instead, validate in **two tiers** — both are required before merging any change that touches the APIM policy, the identity surface, or the connector shape:
+
+| Tier | What it proves | How | Frequency |
+|---|---|---|---|
+| **Auth-plane** | The delegated user token path (aud, scp, roles) is accepted by APIM's `validate-azure-ad-token` policy, MCP.Read gate, method whitelist, and SF token exchange. MCP headers (`Accept: text/event-stream`) are correctly sent by the client. Data-exposure boundary (excluded objects) holds at the SF layer. | `az login` as daily driver, then `.\test-harness\Invoke-ApimSmokeTest.ps1 -AssertDelegated`. Fast, repeatable, script-driven. See [Manual delegated-token test](#manual-delegated-token-test-run-as-your-daily-driver) below. | Every PR that touches policies/, identity, or app-reg config. |
+| **Consumer-plane** | The MCP runtime host that production users go through (Copilot Studio agent, Power Automate flow) can drive the same connector end-to-end. UI-layer OAuth (Stale connections, silent refreshes, popup flow) all work under a real user's identity. | Install the Custom Connector on a Copilot Studio agent, invoke a concrete tool (e.g. "Get my Salesforce user info"), verify live payload. Not scriptable; requires manual walk-through per [`docs/onboarding/CONSUMER-QUICKSTART.md`](onboarding/CONSUMER-QUICKSTART.md). | After every change that touches connector swagger, redirect URIs, OAuth scopes, or the Copilot Studio tool-discovery annotation (`x-ms-agentic-protocol`). Also once per new environment provisioned. |
+
+Both tiers exercise the same delegated OAuth flow — the connector's Security tab configures OAuth once, and both PowerShell (via `az login`) and Copilot Studio use it under the current user's Entra identity. What differs is the **transport**: PowerShell drives the raw MCP JSON-RPC with correct headers; Copilot Studio drives it via its MCP runtime host, which handles headers on the user's behalf.
+
+If auth-plane passes but consumer-plane fails, the delta is in the MCP runtime host integration (typically a swagger annotation or connector installation issue), not in APIM or the identity surface. If consumer-plane passes but auth-plane fails, the smoke test is stale or a CI-side identity assumption drifted — do not treat the consumer-plane pass as license to skip the smoke.
+
 ## Prerequisites
 
 - Azure CLI installed and authenticated (`az login`)
