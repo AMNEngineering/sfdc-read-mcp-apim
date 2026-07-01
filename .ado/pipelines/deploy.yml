@@ -129,23 +129,8 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     jobs:
-      - job: WaitForApproval
-        displayName: "Wait for Dev Apply Approval"
-        pool: server
-        timeoutInMinutes: 1440
-        steps:
-          - task: ManualValidation@0
-            displayName: "Manual approval before dev apply"
-            inputs:
-              notifyUsers: 'bart.elia@amnhealthcare.com'
-              instructions: |
-                Review the Terraform plan artifact "TF_Plan_Artifact_dev" before approving.
-                Resume to apply changes to dev APIM, Reject to cancel.
-              onTimeout: 'reject'
-
       - deployment: Apply_Configuration
         displayName: "Apply Configuration"
-        dependsOn: WaitForApproval
         environment: 'sfdc-read-dev'
         strategy:
           runOnce:
