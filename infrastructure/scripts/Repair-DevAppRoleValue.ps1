@@ -47,10 +47,10 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  ADM elevation required" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "This script will PATCH Microsoft Graph to fix the appRole `value`" -ForegroundColor White
+Write-Host "This script will PATCH Microsoft Graph to fix the appRole value" -ForegroundColor White
 Write-Host "on '$AppDisplayName' from its current setting to '$ExpectedValue'." -ForegroundColor White
 Write-Host ""
-Write-Host "The role `id` is preserved, so the existing dev-group assignment" -ForegroundColor White
+Write-Host "The role id is preserved, so the existing dev-group assignment" -ForegroundColor White
 Write-Host "on the SP survives unchanged." -ForegroundColor White
 Write-Host ""
 Write-Host "Your Azure CLI session (daily-driver) is NOT affected — Connect-AzAccount" -ForegroundColor Green
