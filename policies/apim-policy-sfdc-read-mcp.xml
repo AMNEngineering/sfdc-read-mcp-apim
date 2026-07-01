@@ -53,16 +53,12 @@
         <set-variable name="mcpMethod" value='@(((JObject)context.Variables["requestBody"])["method"]?.ToString())' />
         <set-variable name="mcpId" value='@(((JObject)context.Variables["requestBody"])["id"])' />
 
-        <!-- Handle notifications and reject unsupported JSON-RPC methods in APIM -->
+        <!-- Reject unsupported JSON-RPC methods in APIM. notifications/initialized
+             is intentionally NOT short-circuited here: SF's hosted MCP server gates
+             tools/list behind receiving the client's ready signal, so swallowing it
+             at APIM produces empty-body 200s on subsequent tools/list POSTs. Let it
+             flow to SF, which will return 202 with no body per MCP spec. -->
         <choose>
-            <when condition='@(((string)context.Variables["mcpMethod"]) == "notifications/initialized")'>
-                <return-response>
-                    <set-status code="202" reason="Accepted" />
-                    <set-header name="x-correlation-id" exists-action="override">
-                        <value>@((string)context.Variables["correlationId"])</value>
-                    </set-header>
-                </return-response>
-            </when>
             <when condition='@(
                 context.Request.Method == "POST"
                 &amp;&amp; !string.IsNullOrEmpty((string)context.Variables["mcpMethod"])
