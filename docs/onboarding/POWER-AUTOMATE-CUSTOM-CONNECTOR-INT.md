@@ -69,9 +69,11 @@ Expect `{"value": true}`. If `false`, an admin adds the user to the group before
 2. Connector name: `SFDCRead INT MCP`
 3. Scheme: HTTPS
 4. Host: `api.int.amnhealthcare.io`
-5. Base URL: `/sfdcread/int`
+5. Base URL: `/` (leave the entire path — `/sfdcread/int/mcp` — in the operation's URL in Step 3 instead)
 
 Click the right-arrow to advance to Security.
+
+Why not put `/sfdcread/int` in Base URL: Power Automate concatenates `host` + `basePath` + operation `path` when it renders the request URL. If Base URL is `/sfdcread/int` **and** the operation path is `/sfdcread/int/mcp`, the effective request URL is `https://api.int.amnhealthcare.io/sfdcread/int/sfdcread/int/mcp` — a 404. Keeping Base URL at `/` and the full path on the operation avoids the concatenation trap.
 
 ## Step 2: Custom Connector — Security tab
 
@@ -152,29 +154,35 @@ When the Identity Provider in the Security tab is `Azure Active Directory`, Powe
 
 Always confirm the Identity Provider stays at `Generic Oauth 2` (Step 2 item 2). If the swagger shows `login.windows.net` or `/common/` in `securityDefinitions`, return to the Security tab and switch back.
 
-## Step 4: Custom Connector — Test tab
+## Step 4: Custom Connector — Test tab (auth-plane only)
+
+**The Test tab is not a valid MCP tool test.** It performs a plain HTTP POST with `Accept: application/json`; the MCP streamable-HTTP transport requires `Accept: application/json, text/event-stream`. Attempting `tools/list` from the Test tab returns HTTP 406 with body `{"error":{"code":406,"message":"Accept header must include both application/json and text/event-stream"}}`. The response headers include `x-ms-apihub-cached-response: true`, indicating the failure is intercepted at Power Automate's API Hub layer or cached from a prior SF response. Adding an `Accept` header parameter to the connector definition to work around this is **not viable** — it trips APIM's swagger validator with "Operation can have only one body parameter" and breaks MCP mode.
+
+Use the Test tab only to prove the **auth plane** works: `New connection` → sign-in completes → connection status = `Connected`. Any concrete MCP tool call (`tools/list`, `getUserInfo`, etc.) must be validated via one of the two paths in the [MCP validation methodology](../TESTING.md).
 
 1. Click `New connection`.
 2. Sign in with the daily-driver account verified in Step 0. A consent prompt appears on first connection.
-3. After the connection status shows `Connected`, select the `Invoke MCP` operation.
-4. Body:
+3. Confirm the connection status flips to `Connected`.
 
-	{ "jsonrpc": "2.0", "id": 1, "method": "tools/list" }
-
-5. Click `Test operation`.
-
-### Acceptance
+### Acceptance (auth plane only)
 
 | Outcome | Interpretation | Action |
 |---|---|---|
-| 200 with `result.tools` array | OAuth + APIM + Salesforce path works end-to-end | Onboarding done |
-| 200 with JSON-RPC `error` envelope | APIM accepted the token; backend (Salesforce) returned an application error | Read `error.data`. Treat data-access errors as flag-for-review per the project's data constraints, not as runbook failure |
-| 403 with body `{"error":"User does not have MCP.Read role"}` | OAuth succeeded; user lacks the role claim | Confirm group membership; sign out and back in to refresh the token |
-| 401 from APIM | Token audience / issuer / signature mismatch | Re-verify Step 2 fields against Step 0 output exactly; check that Identity Provider is Generic Oauth 2, not AAD |
+| Connection status = `Connected` | OAuth flow reached Entra, PA persisted a delegated user token | Auth plane proven. Continue to consumer-plane validation (below). |
 | AADSTS50011 on consent | Per-connector redirect URI not on the app reg | Step 2 item 5 — admin adds via bootstrap Step 4.2 |
 | AADSTS65001 consent required | Pre-authorization missing on the app reg | Run bootstrap Step 5 |
 | AADSTS70011 invalid scope | Scope field wrong format | Must be full `api://<app-id>/user_impersonation`, not just `user_impersonation` |
 | Consent popup closes immediately | Managed Chrome extension interfering | Retry in Edge |
+| Any 406 from a Test tab tool invocation | Expected — Test tab is not an MCP client | Do not treat as a bug. Move to consumer-plane validation. |
+
+### Consumer-plane validation (mandatory follow-through)
+
+Auth-plane success is not sufficient. To prove the connector works end-to-end through the MCP transport, run one of:
+
+- **PowerShell smoke** — `az login` as daily driver, then `.\test-harness\Invoke-ApimSmokeTest.ps1 -AssertDelegated`. Validates the delegated token path with correct MCP `Accept` headers. Repeatable, CI-friendly.
+- **Copilot Studio agent** — install the connector on an agent in the same environment and invoke a concrete tool (e.g., "Get my Salesforce user info"). Validates the MCP runtime host that production consumers use. See `COPILOT-STUDIO-MCP-SERVER-INT.md`.
+
+Both paths use the same delegated OAuth flow the connector's Security tab configures. If Test tab connects but neither consumer-plane path works, the connector's swagger has drifted (usually the OAuth URLs — see the drift warning above); rerun Step 2 and paste the swagger for review.
 
 ## Step 5: Share the connector (optional)
 
