@@ -481,24 +481,30 @@ stages:
                 fi
 
           # End-to-end smoke against the deployed gateway.
-          # Uses the ADO Upper SPN's client_credentials with scope=<app-id>/.default
-          # so the token's aud is bare-GUID — the format PA produces in self-OAuth
-          # and that PR #19 taught the policy to accept. Catches audience-acceptance
-          # regressions automatically; the ARM checks above only verify the policy
-          # XML contains certain strings, not that the policy still accepts the
-          # token shapes downstream consumers (PA / Copilot Studio) send.
+          # Uses `az account get-access-token --resource api://<app-id>` under the
+          # pipeline SPN's login, producing a token with aud=api://<app-id> — the
+          # audience format PA and Copilot Studio actually use in production
+          # (Scope: api://<app-id>/user_impersonation per the onboarding docs).
+          #
+          # Coverage limits deliberately called out:
+          #   * This is an APP-ONLY token (SPN authenticates itself). PA/Copilot use
+          #     DELEGATED user tokens. CI cannot easily reproduce the interactive
+          #     delegated flow — that path must be verified manually against the
+          #     deployed connectors (see docs/TESTING.md "Known automation gap").
+          #   * The bare-GUID audience branch of the dual-audience policy (used by
+          #     the AADSTS90009 self-OAuth fallback) is NOT exercised here. Local
+          #     dev may use -TokenMode AppOnly to exercise that shape.
+          #
+          # WIF constraint: ServiceConnection_Upper is federated; $servicePrincipalKey
+          # is never populated. -TokenMode AppOnly cannot work here — hence AzCli.
           - task: AzureCLI@2
-            displayName: "Smoke test (bare-GUID audience)"
+            displayName: "Smoke test (api:// audience via WIF SPN)"
             inputs:
               scriptType: 'pscore'
               scriptLocation: 'inlineScript'
-              addSpnToEnvironment: true
               azureSubscription: '$(ServiceConnection_Upper)'
               inlineScript: |
-                $env:ARM_CLIENT_ID     = $env:servicePrincipalId
-                $env:ARM_CLIENT_SECRET = $env:servicePrincipalKey
-                $env:ARM_TENANT_ID     = $env:tenantId
-                ./test-harness/Invoke-ApimSmokeTest.ps1 -TokenMode AppOnly
+                ./test-harness/Invoke-ApimSmokeTest.ps1 -TokenMode AzCli
 
   # -----------------------------------------------------------------------------------------------------------------
   # Prod environment Plan stage (requires CAB approval before creating this)
