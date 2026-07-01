@@ -492,6 +492,22 @@ function Invoke-McpRequest {
         $statusCode = [int]$response.StatusCode
         Write-TestLog "HTTP $statusCode; Content-Type: $mediaType" -Level INFO
 
+        # Dump ALL response headers so we can spot Transfer-Encoding: chunked,
+        # a hidden Content-Type variant, x-ms-* diagnostics, or anything else the
+        # response-parsing path would otherwise discard. Response headers live on
+        # $response.Headers, entity headers (Content-Type, Content-Length, etc.)
+        # live on $response.Content.Headers — enumerate both.
+        Write-TestLog "--- Response headers ---" -Level INFO
+        foreach ($h in $response.Headers) {
+            Write-TestLog "  $($h.Key): $($h.Value -join ', ')" -Level INFO
+        }
+        if ($response.Content -and $response.Content.Headers) {
+            foreach ($h in $response.Content.Headers) {
+                Write-TestLog "  $($h.Key): $($h.Value -join ', ')" -Level INFO
+            }
+        }
+        Write-TestLog "--- end headers ---" -Level INFO
+
         if ($mediaType -eq 'text/event-stream') {
             $parsed = Read-McpSseResponse -Response $response -ExpectedId $Id -TimeoutSeconds $TimeoutSeconds
         } else {
