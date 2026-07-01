@@ -55,6 +55,9 @@
 #>
 
 param(
+    [ValidateSet('dev', 'int')]
+    [string]$Environment = 'int',
+
     [string]$TenantId = "6232c2ec-fa42-4f27-92cd-787913fba489",
 
     [string]$ClientId = "",
@@ -69,26 +72,31 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# SFDCRead INT — the only deployed environment today.
-# Add dev/prod back here when they come online.
+# Per-env constants. Dev iterates fast: no live SF backend, inline mock in
+# policies/apim-policy-sfdc-read-mcp-dev-mock.xml, safe to hammer. Int is
+# the live SF path (policies/apim-policy-sfdc-read-mcp.xml). Both share
+# the JWT/role/session shape so client-side regressions show up in dev.
 #
-# The INT canonical app reg is "SFDCRead INT MCP"
-# (42971939-bc78-4c23-963e-c3e0f87e3bd1), set as `sfdc_read_mcp_app_id` in
-# infrastructure/environments/int.tfvars. The MCP.Read app role and group
-# AZ_AMN_AAD_SfdcReadMcp_Int_User are assigned to it.
-#
-# APIM accepts both audience formats of this single app (see
-# policies/apim-policy-sfdc-read-mcp.xml):
-#   - api://42971939-...  — the .default / api-scope flow used by Power
-#     Automate and Copilot Studio
-#   - 42971939-...        — the bare GUID issued by Entra in self-OAuth
-#     (client app == resource app), where Entra rejects the api:// form
-#
-# The earlier "SFDC Read MCP Reader Int" app reg
-# (976d1c5b-bc4b-4cdf-9fd3-6fd7567a1a03) was retired by the single-audience
-# consolidation. Do not re-add it.
-$ApimEndpoint = "https://api.int.amnhealthcare.io/sfdcread/int/mcp"
-$AppId        = "42971939-bc78-4c23-963e-c3e0f87e3bd1"
+# Int dual-audience note: APIM accepts both `api://42971939-...` (the
+# .default / api-scope flow used by Power Automate and Copilot Studio)
+# and the bare `42971939-...` GUID (self-OAuth where client == resource).
+# See policies/apim-policy-sfdc-read-mcp.xml.
+$envConfig = switch ($Environment) {
+    'dev' {
+        @{
+            Endpoint = 'https://api.dev.amnhealthcare.io/sfdcread/dev/mcp'
+            AppId    = '6ce6ccb1-32db-40f8-97b5-bfbe700d052e'  # SFDC Read MCP Reader Dev
+        }
+    }
+    'int' {
+        @{
+            Endpoint = 'https://api.int.amnhealthcare.io/sfdcread/int/mcp'
+            AppId    = '42971939-bc78-4c23-963e-c3e0f87e3bd1'  # SFDCRead INT MCP
+        }
+    }
+}
+$ApimEndpoint = $envConfig.Endpoint
+$AppId        = $envConfig.AppId
 
 $script:TestResults = @()
 
@@ -791,7 +799,7 @@ Write-Host "`n===============================================================" -
 Write-Host "  APIM Smoke Test - SFDC Read MCP API" -ForegroundColor Cyan
 Write-Host "===============================================================" -ForegroundColor Cyan
 
-Write-TestLog "Environment: int" -Level INFO
+Write-TestLog "Environment: $Environment" -Level INFO
 Write-TestLog "Endpoint: $ApimEndpoint" -Level INFO
 Write-TestLog "App ID: $AppId" -Level INFO
 Write-TestLog "Token mode: $TokenMode" -Level INFO
