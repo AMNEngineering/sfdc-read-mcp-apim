@@ -600,6 +600,22 @@ function Test-ToolsList {
         -Id 2 `
         -CorrelationId $corrId
 
+    # Regression guard: empty-body 200 on tools/list is the exact signature we saw
+    # when APIM short-circuited notifications/initialized locally (PR #6, commit
+    # bfef686). SF gates tools/list behind its own view of the session-ready
+    # signal — if APIM swallows the notification, SF hands back HTTP 200 with an
+    # empty body and the client's ConvertFrom-Json yields $null. Fail fast with a
+    # targeted hint so future readers don't have to re-derive this.
+    if ($null -eq $response) {
+        throw "tools/list returned an empty body (parsed to `$null). This is the exact fingerprint of APIM swallowing notifications/initialized without forwarding to Salesforce — SF then serves empty on subsequent requests. Check policies/apim-policy-sfdc-read-mcp.xml for any <return-response> block gated on mcpMethod == 'notifications/initialized'; that block must NOT exist in int. correlation-id: $corrId"
+    }
+
+    # Assert JSON-RPC 2.0 envelope shape (would catch a malformed / non-JSON body
+    # that somehow parsed to a truthy object).
+    if ($response.jsonrpc -ne "2.0") {
+        throw "tools/list response is not a valid JSON-RPC 2.0 envelope (jsonrpc='$($response.jsonrpc)'). correlation-id: $corrId"
+    }
+
     if (-not $response.result.tools) {
         Write-TestLog "tools/list returned no tools array. Raw parsed response follows:" -Level ERROR
         Write-TestLog ($response | ConvertTo-Json -Depth 10) -Level ERROR
