@@ -17,15 +17,15 @@ terraform {
 resource "azapi_resource" "mcp_server" {
   type      = "Microsoft.ApiManagement/service/mcpServers@2024-06-01-preview"
   name      = var.mcp_server_name
-  parent_id = "${data.azurerm_api_management.apim.id}"
+  parent_id = data.azurerm_api_management.apim.id
 
   body = jsonencode({
     properties = {
-      displayName        = var.display_name
-      description        = var.description
+      displayName         = var.display_name
+      description         = var.description
       backendMcpServerUrl = var.backend_mcp_url
-      transportType      = var.transport_type
-      basePath           = var.base_path
+      transportType       = var.transport_type
+      basePath            = var.base_path
     }
   })
 
@@ -44,9 +44,9 @@ resource "null_resource" "mcp_server_policy" {
   count = var.policy_xml_content != "" ? 1 : 0
 
   triggers = {
-    policy_hash      = md5(var.policy_xml_content)
-    mcp_server_id    = azapi_resource.mcp_server.id
-    always_run       = timestamp()  # Force policy check on every apply
+    policy_hash   = md5(var.policy_xml_content)
+    mcp_server_id = azapi_resource.mcp_server.id
+    always_run    = timestamp() # Force policy check on every apply
   }
 
   provisioner "local-exec" {
