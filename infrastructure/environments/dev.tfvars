@@ -22,6 +22,9 @@ sfdc_client_id     = "mock-client-id"
 sfdc_client_secret = "mock-client-secret"
 sfdc_token_url     = "http://localhost:8080/oauth/token"
 
+# Native MCP (experimental) - disabled in dev for faster iteration
+enable_native_mcp = false
+
 # Tags
 tags = {
   environment = "dev"

@@ -23,6 +23,9 @@ output "operation_id" {
   value       = azurerm_api_management_api_operation.mcp_post.operation_id
 }
 
+# COMMENTED OUT: Outputs for removed operations
+# Uncomment if operations are restored
+/*
 output "mcp_get_operation_id" {
   description = "MCP GET operation ID"
   value       = azurerm_api_management_api_operation.mcp_get.operation_id
@@ -37,3 +40,4 @@ output "legacy_operation_id" {
   description = "Legacy MCP POST operation ID (backward compatibility)"
   value       = azurerm_api_management_api_operation.mcp_invoke_legacy.operation_id
 }
+*/

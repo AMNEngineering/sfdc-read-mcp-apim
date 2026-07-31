@@ -1,0 +1,139 @@
+<policies>
+    <inbound>
+        <base />
+
+        <!-- Validate Entra ID JWT and require MCP.Read role.
+             Accept both audience formats:
+               - api://{guid}  — issued when a client requests "api://{guid}/.default"
+               - {guid}        — issued when the client app is the same as the resource app -->
+        <validate-azure-ad-token tenant-id="${tenant_id}">
+            <audiences>
+                <audience>api://{{SFDC-Read-MCP-App-ID}}</audience>
+                <audience>{{SFDC-Read-MCP-App-ID}}</audience>
+            </audiences>
+        </validate-azure-ad-token>
+
+        <!-- Verify user has MCP.Read app role -->
+        <choose>
+            <when condition='@{
+                var token = context.Request.Headers.GetValueOrDefault("Authorization","").Split(Convert.ToChar(32))[1].AsJwt();
+                var roles = token != null && token.Claims.ContainsKey("roles") ? token.Claims["roles"] : null;
+                return roles == null || !roles.Contains("MCP.Read");
+            }'>
+                <return-response>
+                    <set-status code="403" reason="Forbidden" />
+                    <set-body>{"error": "User does not have MCP.Read role"}</set-body>
+                </return-response>
+            </when>
+        </choose>
+
+        <!-- Extract user identity for audit trail -->
+        <set-variable name="userOid" value='@{
+            var token = context.Request.Headers.GetValueOrDefault("Authorization","").Split(Convert.ToChar(32))[1].AsJwt();
+            return token != null && token.Claims.ContainsKey("oid") && token.Claims["oid"] != null && token.Claims["oid"].Length &gt; 0 ? token.Claims["oid"][0] : string.Empty;
+        }' />
+        <set-header name="x-apim-user-id" exists-action="override">
+            <value>@((string)context.Variables["userOid"])</value>
+        </set-header>
+
+        <!-- Correlation ID for tracing -->
+        <set-variable name="correlationId" value='@(context.Request.Headers.GetValueOrDefault("x-correlation-id", Guid.NewGuid().ToString()))' />
+        <set-header name="x-correlation-id" exists-action="override">
+            <value>@((string)context.Variables["correlationId"])</value>
+        </set-header>
+
+        <!-- Resolve named values for Salesforce OAuth -->
+        <set-variable name="sfClientId" value="{{SFDC-MCP-Client-ID}}" />
+        <set-variable name="sfClientSecret" value="{{SFDC-MCP-Client-Secret}}" />
+        <set-variable name="sfTokenUrl" value="{{SFDC-MCP-Token-URL}}" />
+
+        <!-- Cache lookup: avoid token request on every call (TTL 30 min) -->
+        <cache-lookup-value key='@("sfdc-mcp-token-" + (string)context.Variables["sfClientId"])' variable-name="sfAccessToken" />
+
+        <!-- Exchange token if cache miss -->
+        <choose>
+            <when condition='@(!context.Variables.ContainsKey("sfAccessToken") || string.IsNullOrEmpty((string)context.Variables["sfAccessToken"]))'>
+                <send-request mode="new" response-variable-name="sfTokenResponse" timeout="10" ignore-error="true">
+                    <set-url>@((string)context.Variables["sfTokenUrl"])</set-url>
+                    <set-method>POST</set-method>
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/x-www-form-urlencoded</value>
+                    </set-header>
+                    <set-body>@{
+                        var clientId = (string)context.Variables["sfClientId"];
+                        var clientSecret = (string)context.Variables["sfClientSecret"];
+                        return String.Format("grant_type=client_credentials&amp;client_id={0}&amp;client_secret={1}",
+                            Uri.EscapeDataString(clientId), Uri.EscapeDataString(clientSecret));
+                    }</set-body>
+                </send-request>
+
+                <!-- Token failure: return JSON-RPC error -->
+                <choose>
+                    <when condition='@(((IResponse)context.Variables["sfTokenResponse"]).StatusCode != 200)'>
+                        <return-response>
+                            <set-status code="200" reason="OK" />
+                            <set-header name="Content-Type" exists-action="override">
+                                <value>application/json</value>
+                            </set-header>
+                            <set-header name="x-correlation-id" exists-action="override">
+                                <value>@((string)context.Variables["correlationId"])</value>
+                            </set-header>
+                            <set-body>@{
+                                return new JObject(
+                                    new JProperty("jsonrpc", "2.0"),
+                                    new JProperty("id", null),
+                                    new JProperty("error", new JObject(
+                                        new JProperty("code", -32603),
+                                        new JProperty("message", "Internal error"),
+                                        new JProperty("data", "Salesforce token exchange failed. x-correlation-id: " + (string)context.Variables["correlationId"])
+                                    ))
+                                ).ToString();
+                            }</set-body>
+                        </return-response>
+                    </when>
+                </choose>
+
+                <!-- Store token in cache for 30 minutes -->
+                <set-variable name="sfAccessToken" value='@(((IResponse)context.Variables["sfTokenResponse"]).Body.As&lt;JObject&gt;()["access_token"].ToString())' />
+                <cache-store-value key='@("sfdc-mcp-token-" + (string)context.Variables["sfClientId"])' value='@((string)context.Variables["sfAccessToken"])' duration="1800" />
+            </when>
+        </choose>
+
+        <!-- Replace inbound Entra JWT with Salesforce bearer token -->
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + (string)context.Variables["sfAccessToken"])</value>
+        </set-header>
+    </inbound>
+
+    <backend>
+        <base />
+    </backend>
+
+    <outbound>
+        <base />
+    </outbound>
+
+    <on-error>
+        <base />
+        <!-- Return JSON-RPC error envelope for unhandled exceptions -->
+        <set-variable name="errorCorrelationId" value='@(context.Variables.ContainsKey("correlationId") ? (string)context.Variables["correlationId"] : Guid.NewGuid().ToString())' />
+        <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+        </set-header>
+        <set-header name="x-correlation-id" exists-action="override">
+            <value>@((string)context.Variables["errorCorrelationId"])</value>
+        </set-header>
+        <set-body>@{
+            return new JObject(
+                new JProperty("jsonrpc", "2.0"),
+                new JProperty("id", null),
+                new JProperty("error", new JObject(
+                    new JProperty("code", -32603),
+                    new JProperty("message", "Internal error"),
+                    new JProperty("data", "x-correlation-id: " + (string)context.Variables["errorCorrelationId"])
+                ))
+            ).ToString();
+        }</set-body>
+        <set-status code="200" reason="OK" />
+    </on-error>
+</policies>

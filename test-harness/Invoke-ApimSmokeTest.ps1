@@ -65,7 +65,7 @@
 #>
 
 param(
-    [ValidateSet('dev', 'int')]
+    [ValidateSet('dev', 'int', 'int-native')]
     [string]$Environment = 'int',
 
     [string]$TenantId = "6232c2ec-fa42-4f27-92cd-787913fba489",
@@ -102,6 +102,12 @@ $envConfig = switch ($Environment) {
         @{
             Endpoint = 'https://api.int.amnhealthcare.io/sfdcread/int/mcp'
             AppId    = '42971939-bc78-4c23-963e-c3e0f87e3bd1'  # SFDCRead INT MCP
+        }
+    }
+    'int-native' {
+        @{
+            Endpoint = 'https://amn-wus2-hub-apim-i02.azure-api.net/sfdcread-mcp-native/mcp'
+            AppId    = '42971939-bc78-4c23-963e-c3e0f87e3bd1'  # SFDCRead INT MCP (same identity)
         }
     }
 }

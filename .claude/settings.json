@@ -16,7 +16,8 @@
       "Bash(terraform init *)",
       "Bash(terraform plan *)",
       "Bash(terraform validate)",
-      "Bash(terraform show *)"
+      "Bash(terraform show *)",
+      "Bash(terraform validate *)"
     ]
   }
 }

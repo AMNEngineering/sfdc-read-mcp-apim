@@ -498,13 +498,35 @@ stages:
           # WIF constraint: ServiceConnection_Upper is federated; $servicePrincipalKey
           # is never populated. -TokenMode AppOnly cannot work here — hence AzCli.
           - task: AzureCLI@2
-            displayName: "Smoke test (api:// audience via WIF SPN)"
+            displayName: "Smoke test generic API (api:// audience via WIF SPN)"
             inputs:
               scriptType: 'pscore'
               scriptLocation: 'inlineScript'
               azureSubscription: '$(ServiceConnection_Upper)'
               inlineScript: |
-                ./test-harness/Invoke-ApimSmokeTest.ps1 -TokenMode AzCli
+                ./test-harness/Invoke-ApimSmokeTest.ps1 -Environment int -TokenMode AzCli
+
+          # Native MCP server smoke test (experimental parallel deployment)
+          # Only runs if enable_native_mcp = true in int.tfvars
+          # Tests the Azure APIM native MCP server resource at /sfdcread-mcp-native/mcp
+          # Validates functional parity with generic API
+          - task: AzureCLI@2
+            displayName: "Smoke test native MCP server (experimental)"
+            condition: succeededOrFailed()  # Run even if generic API test fails, to compare
+            continueOnError: true  # Don't fail pipeline if native MCP fails (it's experimental)
+            inputs:
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              azureSubscription: '$(ServiceConnection_Upper)'
+              inlineScript: |
+                # Only test if native MCP is enabled
+                $intTfvars = Get-Content infrastructure/environments/int.tfvars -Raw
+                if ($intTfvars -match 'enable_native_mcp\s*=\s*true') {
+                  Write-Host "##[section]Native MCP enabled - running smoke test"
+                  ./test-harness/Invoke-ApimSmokeTest.ps1 -Environment int-native -TokenMode AzCli
+                } else {
+                  Write-Host "##[warning]Native MCP disabled in int.tfvars - skipping test"
+                }
 
   # -----------------------------------------------------------------------------------------------------------------
   # Prod environment Plan stage (requires CAB approval before creating this)
