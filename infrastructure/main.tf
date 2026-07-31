@@ -165,3 +165,29 @@ module "health_check_policy" {
 
   depends_on = [module.mcp_api]
 }
+
+# Native MCP Server Module (experimental, parallel deployment)
+# Only deployed when enable_native_mcp = true
+module "mcp_server_native" {
+  count  = var.enable_native_mcp ? 1 : 0
+  source = "./modules/mcp-server-native"
+
+  apim_name      = var.apim_name
+  resource_group = var.apim_resource_group
+
+  mcp_server_name = "sfdcread-mcp-native-${var.environment}"
+  display_name    = "MCP ${upper(var.environment)} - SFDCRead (Native)"
+  description     = "Salesforce MCP Read-Only Server (Native APIM MCP) - ${upper(var.environment)}"
+
+  backend_mcp_url = "${var.sfdc_mcp_base_url}${var.sfdc_mcp_path}"
+  transport_type  = "StreamableHttp"
+  base_path       = "sfdcread-mcp-native"
+
+  policy_xml_content = templatefile("${path.root}/../policies/apim-policy-sfdc-read-mcp-native.xml", {
+    tenant_id = var.tenant_id
+  })
+
+  tags = var.tags
+
+  depends_on = [module.named_values, module.oauth2_auth_server]
+}

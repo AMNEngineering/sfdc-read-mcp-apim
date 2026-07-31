@@ -84,3 +84,9 @@ variable "tags" {
     managed_by = "terraform"
   }
 }
+
+variable "enable_native_mcp" {
+  description = "Enable native MCP server deployment (experimental, runs in parallel with generic API)"
+  type        = bool
+  default     = false
+}

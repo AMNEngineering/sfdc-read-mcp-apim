@@ -29,6 +29,9 @@ sfdc_token_url     = "https://amnhealthcare--qa.sandbox.my.salesforce.com/servic
 # MCP backend (routes to api.salesforce.com, not the SF instance URL)
 sfdc_mcp_base_url = "https://api.salesforce.com"
 
+# Native MCP (experimental) - enabled in int for validation
+enable_native_mcp = true
+
 # Tags
 tags = {
   environment = "int"

@@ -6,6 +6,39 @@ This document is a *reference* — it describes what the gateway is and how requ
 
 A read-only APIM gateway that brokers an Entra-authenticated identity into a Salesforce Hosted MCP server (`sobject-reads`). The gateway is a **boundary**, not a passthrough — it limits which SObjects, fields, and operations Entra-authenticated callers can see. See the [README "Design Intent"](../README.md#design-intent--limited-exposure-is-the-product) section.
 
+## Deployment Architecture: Dual-Track (INT)
+
+INT environment runs **two parallel MCP endpoints** for comparison and validation:
+
+### Track 1: Generic API (Production)
+- **Path**: `/sfdcread/int/mcp`
+- **Type**: Generic HTTP API with manual MCP protocol handling
+- **Operations**: POST `/mcp` (Streamable HTTP), GET `/health`
+- **Policy**: 206-line manual routing with `set-backend-service` + `rewrite-uri`
+- **Management**: APIs tab in APIM portal
+- **Status**: ✅ Production, all consumers use this
+
+### Track 2: Native MCP Server (Experimental)
+- **Path**: `/sfdcread-mcp-native/mcp`
+- **Type**: Azure APIM native MCP server resource
+- **Operations**: Automatically managed by APIM
+- **Policy**: ~150-line simplified (no manual routing)
+- **Management**: MCP Servers tab in APIM portal
+- **Status**: 🧪 Experimental validation
+
+Both tracks:
+- Use same Entra app registration (`42971939-bc78-4c23-963e-c3e0f87e3bd1`)
+- Proxy to same Salesforce backend (`api.salesforce.com`)
+- Apply same security controls (JWT validation, role check, SF token exchange)
+
+**Why dual-track?** Evaluating whether Azure's native MCP features justify migration:
+- Dedicated MCP management UI
+- MCP-specific monitoring (operation context, session IDs)
+- API Center integration
+- Future MCP features (Resources, Prompts, A2A)
+
+See [MCP Native Validation Plan](MCP-NATIVE-VALIDATION.md) for comparison methodology.
+
 ## Component map
 
 | Layer | Resource | Source |
@@ -13,7 +46,8 @@ A read-only APIM gateway that brokers an Entra-authenticated identity into a Sal
 | Edge (INT) | Azure Front Door route `api.int.amnhealthcare.io/sfdcread/*` | external — managed in `az-amn-tf-enterprise-infra` |
 | Gateway | APIM instance `amn-wus2-hub-apim-{d02,i02,p02}` | shared services, not in this repo |
 | API | `api-sfdc-read-{env}` at path `sfdcread/{env}` | [`infrastructure/modules/mcp-api/main.tf`](../infrastructure/modules/mcp-api/main.tf) |
-| API operations | `GET /health`, `POST /mcp`, `GET /mcp` (SSE), `DELETE /mcp`, `POST /` (legacy) | same |
+| API operations | `GET /health`, `POST /mcp` (SSE/DELETE/legacy operations removed—see note below) | same |
+| **MCP Server (native)** | `sfdcread-mcp-native-{env}` at path `sfdcread-mcp-native` | [`infrastructure/modules/mcp-server-native/main.tf`](../infrastructure/modules/mcp-server-native/main.tf) |
 | API policy (INT/PROD) | JWT validate → role check → SF OAuth exchange → backend forward | [`policies/apim-policy-sfdc-read-mcp.xml`](../policies/apim-policy-sfdc-read-mcp.xml) |
 | API policy (Dev) | JWT validate → role check → inline mock responses | [`policies/apim-policy-sfdc-read-mcp-dev-mock.xml`](../policies/apim-policy-sfdc-read-mcp-dev-mock.xml) |
 | Health-check policy | No auth, returns `{status:"healthy", ...}` | [`policies/apim-policy-health-check.xml`](../policies/apim-policy-health-check.xml) |
@@ -80,6 +114,22 @@ The Entra caller identity does **not** propagate into Salesforce — every SF re
 Dev does not exchange SF tokens and does not call out to any backend. The policy ([`apim-policy-sfdc-read-mcp-dev-mock.xml`](../policies/apim-policy-sfdc-read-mcp-dev-mock.xml)) still validates the JWT and the `MCP.Read` role, but returns inline mock responses for `initialize` / `tools/list` / `tools/call`. The dev app reg is `6ce6ccb1-32db-40f8-97b5-bfbe700d052e` (`SFDC Read MCP Reader Dev`) per [`dev.tfvars`](../infrastructure/environments/dev.tfvars).
 
 Dev is useful for verifying the JWT/role wiring and protocol shape without standing up a Salesforce backend, but it cannot validate the OAuth exchange or the SF routing — those only run end-to-end against INT.
+
+## Generic API Simplification (2026-07)
+
+Removed obsolete operations from the generic API (commented out in Terraform for easy rollback):
+
+| Operation | Why Removed | Rollback |
+|-----------|-------------|----------|
+| GET `/mcp` | SSE transport deprecated as of MCP `2024-11-05` | Uncomment in `mcp-api/main.tf` |
+| DELETE `/mcp` | Session cleanup rarely used by clients | Uncomment in `mcp-api/main.tf` |
+| POST `/` | Legacy endpoint with no known consumers | Uncomment in `mcp-api/main.tf` |
+
+**Kept**:
+- POST `/mcp` - The only operation used by consumers (Streamable HTTP)
+- GET `/health` - AFD liveness probe
+
+All MCP traffic (initialize, tools/list, tools/call, notifications/initialized) flows through the single POST `/mcp` endpoint. The JSON-RPC `method` field in the request body determines routing.
 
 ## Method whitelist
 

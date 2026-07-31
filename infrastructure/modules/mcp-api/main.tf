@@ -109,6 +109,10 @@ resource "azurerm_api_management_api_operation" "mcp_post" {
   }
 }
 
+# COMMENTED OUT: SSE transport deprecated as of MCP protocol 2024-11-05
+# Only Streamable HTTP (POST /mcp) is used by current consumers
+# Uncomment if SSE transport is needed for backward compatibility
+/*
 resource "azurerm_api_management_api_operation" "mcp_get" {
   operation_id        = "mcp-get"
   api_name            = azurerm_api_management_api.this.name
@@ -142,7 +146,12 @@ resource "azurerm_api_management_api_operation" "mcp_get" {
     description = "Internal Server Error"
   }
 }
+*/
 
+# COMMENTED OUT: Session cleanup rarely used by MCP clients
+# Clients typically just stop POSTing rather than explicitly terminating
+# Uncomment if explicit session cleanup is needed
+/*
 resource "azurerm_api_management_api_operation" "mcp_delete" {
   operation_id        = "mcp-delete"
   api_name            = azurerm_api_management_api.this.name
@@ -178,8 +187,12 @@ resource "azurerm_api_management_api_operation" "mcp_delete" {
     description = "Internal Server Error"
   }
 }
+*/
 
-# Legacy endpoint for backward compatibility (existing clients)
+# COMMENTED OUT: Legacy endpoint for backward compatibility with... nothing
+# No known consumers use POST / instead of POST /mcp
+# Uncomment if legacy clients are discovered
+/*
 resource "azurerm_api_management_api_operation" "mcp_invoke_legacy" {
   operation_id        = "invoke-mcp-legacy"
   api_name            = azurerm_api_management_api.this.name
@@ -213,3 +226,4 @@ resource "azurerm_api_management_api_operation" "mcp_invoke_legacy" {
     description = "Internal Server Error"
   }
 }
+*/

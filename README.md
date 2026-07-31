@@ -4,11 +4,32 @@ Azure API Management gateway for Salesforce Hosted MCP Server (sobject-reads), e
 
 ## Architecture
 
+### Dual-Track Deployment (INT)
+
+INT environment runs **two parallel endpoints** for comparison and validation:
+
+| Track | Type | URL | Status |
+|-------|------|-----|--------|
+| **Generic API** | HTTP API with manual MCP handling | `https://api.int.amnhealthcare.io/sfdcread/int/mcp` | ✅ Production |
+| **Native MCP** | Azure APIM native MCP server | `https://amn-wus2-hub-apim-i02.azure-api.net/sfdcread-mcp-native/mcp` | 🧪 Experimental |
+
+Both endpoints:
+- Use the same Entra app registration and identity
+- Proxy to the same Salesforce MCP backend
+- Support the same MCP tools
+- Follow the same security model
+
+**Why dual-track?** Validating whether Azure's native MCP features (dedicated UI, MCP-specific monitoring, API Center integration) provide sufficient value to warrant migration from the generic approach. See [MCP Native Validation Plan](docs/MCP-NATIVE-VALIDATION.md).
+
+### Data Flow
+
 ```
 Power BI / Copilot Studio
     ↓ (Entra JWT: aud=api://<env-app-id> or bare <env-app-id>)
 Azure APIM (d02/i02/p02 — one app reg per env, same identifier-URI shape)
-    ↓ (Salesforce OAuth: mcp_api scope)
+    ├─ Generic API: /sfdcread/{env}/mcp (manual HTTP routing)
+    └─ Native MCP:  /sfdcread-mcp-native/mcp (native protocol handling)
+           ↓ (Salesforce OAuth: mcp_api scope)
 Salesforce Hosted MCP Server (sobject-reads)
     ↓ (user permissions enforced)
 Salesforce Org
@@ -75,7 +96,14 @@ Symptoms that *are* bugs (and should fail loudly): JWT validation gaps, broken O
 
 3. **Run test suite**:
    ```powershell
-   .\test-harness\Invoke-ApimSmokeTest.ps1 -Environment dev -TestSuite all
+   # Test generic API
+   .\test-harness\Invoke-ApimSmokeTest.ps1 -Environment int
+   
+   # Test native MCP server (INT only)
+   .\test-harness\Invoke-ApimSmokeTest.ps1 -Environment int-native
+   
+   # Compare both side-by-side
+   .\test-harness\Compare-GenericVsNative.ps1
    ```
 
 ### ADO Pipeline Deployment
