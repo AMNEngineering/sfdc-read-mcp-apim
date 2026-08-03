@@ -15,9 +15,10 @@ terraform {
 # Create MCP Server using Azure API
 # Docs: https://learn.microsoft.com/en-us/rest/api/apimanagement/current-ga/mcp-server/create-or-update
 resource "azapi_resource" "mcp_server" {
-  type      = "Microsoft.ApiManagement/service/mcpServers@2024-06-01-preview"
-  name      = var.mcp_server_name
-  parent_id = data.azurerm_api_management.apim.id
+  type                      = "Microsoft.ApiManagement/service/mcpServers@2024-06-01-preview"
+  name                      = var.mcp_server_name
+  parent_id                 = data.azurerm_api_management.apim.id
+  schema_validation_enabled = false
 
   body = jsonencode({
     properties = {
