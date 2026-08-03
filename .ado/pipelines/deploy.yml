@@ -198,6 +198,9 @@ stages:
       - job: Verify_Deployment
         displayName: "Verify Dev Deployment"
         steps:
+          - checkout: self
+            clean: true
+
           - task: AzureCLI@2
             displayName: "Verify APIM API"
             inputs:
